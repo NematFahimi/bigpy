@@ -1,8 +1,8 @@
-
 from google.cloud import bigquery
 import os
 from datetime import datetime
 
+# کلید Google Application Credentials را به درستی ست کنید
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"D:\bigquery\frsphotspots-260f77909682.json"
 client = bigquery.Client()
 table_path = "frsphotspots.HSP.hspdata"
@@ -92,7 +92,7 @@ def query_with_summary(creators, user_service_sql, user_service_params, date_sql
             Creator,
             CreatDate,
             Package,
-            SUM(Package) OVER (ORDER BY CreatDate) AS RunningBalance
+            SUM(Package) OVER (ORDER BY CreatDate ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS RunningBalance
         FROM `{table_path}`
         WHERE Creator IN UNNEST(@creator_list)
           AND {user_service_sql}
