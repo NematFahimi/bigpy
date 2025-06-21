@@ -2,8 +2,9 @@ from google.cloud import bigquery
 import os
 from datetime import datetime
 
-# کلید Google Application Credentials را به درستی ست کنید
+# مسیر فایل JSON کلید را اگر لوکال هستید تنظیم کنید
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"D:\bigquery\frsphotspots-260f77909682.json"
+
 client = bigquery.Client()
 table_path = "frsphotspots.HSP.hspdata"
 
