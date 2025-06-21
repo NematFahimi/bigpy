@@ -1,2 +1,3 @@
+pandas
+numpy
 streamlit
-google-cloud-bigquery
