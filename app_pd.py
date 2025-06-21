@@ -1,66 +1,69 @@
 import streamlit as st
 import pandas as pd
-import jdatetime
 import numpy as np
+import jdatetime
 from io import StringIO
 
-st.set_page_config(page_title="📊 پردازش فایل خدمات کاربران", layout="wide")
-st.title("📊 پردازش فایل گزارش خدمات")
+st.set_page_config(page_title="پردازش فایل CSV خدمات کاربران", layout="wide")
+st.title("🧾 برنامه پردازش گزارش خدمات کاربران")
 
-st.markdown("ابتدا فایل CSV را انتخاب کنید:")
-
-# --- مرحله اول: آپلود فایل ---
-uploaded_file = st.file_uploader("آپلود فایل CSV", type=["csv"])
+uploaded_file = st.file_uploader("📤 فایل CSV را آپلود کنید", type=["csv"])
 
 if uploaded_file:
-    # خواندن فایل CSV
     df = pd.read_csv(uploaded_file)
+    st.success("✅ فایل با موفقیت خوانده شد.")
+    st.write("🧾 پیش‌نمایش فایل اصلی:", df.head())
 
-    # --- مرحله دوم: حذف کالم‌های اضافی ---
+    # حذف ستون‌های اضافی در صورت وجود
     columns_to_drop = [
         'PayPlan', 'DirectOff', 'VAT', 'PayPrice', 'Off', 'SavingOffUsed', 'CancelDT',
         'ReturnPrice', 'InstallmentNo', 'InstallmentPeriod', 'InstallmentFirstCash', 'ServiceIsDel'
     ]
-    df = df.drop(columns=columns_to_drop, errors='ignore')
+    df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
 
-    # --- مرحله سوم: دریافت UserServiceId هدف ---
-    user_service_id = st.number_input("یک شماره UserServiceId وارد کنید:", min_value=1, step=1)
+    # دریافت ورودی از کاربر
+    user_input = st.number_input("🔢 لطفاً شماره UserServiceId را وارد کنید:", min_value=1, step=1)
 
-    if st.button("اجرای پردازش"):
-        index_target = df.index[df['UserServiceId'] == user_service_id].tolist()
+    if st.button("🚀 پردازش فایل"):
+        index_target = df.index[df['UserServiceId'] == user_input].tolist()
         if not index_target:
-            st.error(f"UserServiceId برابر {user_service_id} پیدا نشد.")
+            st.error(f"UserServiceId برابر {user_input} پیدا نشد.")
         else:
-            start_index = index_target[0]
+            start_index = index_target[0] + 1
             df = df.loc[start_index:].reset_index(drop=True)
-            st.success(f"تمام سطرهای قبل از UserServiceId={user_service_id} حذف شدند.")
+            st.info(f"تمام ردیف‌های قبل و شامل UserServiceId={user_input} حذف شدند.")
 
-            # --- مرحله چهارم: پاک کردن قیمت‌ها ---
-            df['ServicePrice'] = np.nan
-            df['SavingOffUsed'] = np.nan
+            # پاک‌سازی مقادیر
+            if 'ServicePrice' in df.columns:
+                df['ServicePrice'] = np.nan
+            if 'SavingOffUsed' in df.columns:
+                df['SavingOffUsed'] = np.nan
 
-            # --- مرحله پنجم: تبدیل تاریخ ---
+            # تابع تبدیل تاریخ شمسی به میلادی
             def persian_to_gregorian_str(persian_datetime_str):
                 try:
                     date_part = str(persian_datetime_str).split(' ')[0]
                     year, month, day = map(int, date_part.split('/'))
-                    gdate = jdatetime.date(year, month, day).togregorian()
-                    return gdate.strftime('%Y-%m-%d')
+                    g_date = jdatetime.date(year, month, day).togregorian()
+                    return g_date.strftime('%Y-%m-%d')
                 except:
                     return None
 
-            df['CDT'] = df['CDT'].apply(persian_to_gregorian_str)
+            # تبدیل ستون CDT
+            if 'CDT' in df.columns:
+                df['CDT'] = df['CDT'].apply(persian_to_gregorian_str)
+                cols = list(df.columns)
+                cols.insert(0, cols.pop(cols.index('CDT')))
+                df = df[cols]
 
-            # انتقال ستون CDT به اول
-            cols = df.columns.tolist()
-            cols.insert(0, cols.pop(cols.index('CDT')))
-            df = df[cols]
+            st.success("✅ فایل با موفقیت پردازش شد.")
+            st.write("📋 پیش‌نمایش خروجی:", df.head(15))
 
-            # --- نمایش نتایج و دانلود ---
-            st.subheader("پیش‌نمایش داده نهایی:")
-            st.dataframe(df.head(15), use_container_width=True)
-
+            # دانلود فایل نهایی
             csv = df.to_csv(index=False, encoding='utf-8-sig')
-            st.download_button("📥 دانلود فایل نهایی CSV", data=csv, file_name="final_output.csv", mime='text/csv')
-else:
-    st.info("لطفاً فایل CSV را بارگذاری کنید تا پردازش آغاز شود.")
+            st.download_button(
+                label="📥 دانلود فایل نهایی CSV",
+                data=csv,
+                file_name='final_output.csv',
+                mime='text/csv'
+            )
