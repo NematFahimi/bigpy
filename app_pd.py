@@ -34,16 +34,4 @@ def jalali_to_gregorian(date_str):
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
 
-    st.success("✅ فایل با موفقیت خوانده شد.")
-    st.write("پیش‌نمایش فایل اصلی:", df.head())
-
-    columns_to_drop = [
-        'PayPlan', 'DirectOff', 'VAT', 'PayPrice', 'Off', 'SavingOff', 'CancelDT',
-        'ReturnPrice', 'InstallmentNo', 'InstallmentPeriod', 'InstallmentFirstCash', 'ServiceIsDel'
-    ]
-    df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
-
-    user_input = st.number_input("🔢 لطفاً شماره UserServiceId را وارد کنید:", min_value=1, step=1)
-
-    if st.button("🚀 پردازش فایل"):
-        filtered_df = df[df['UserServiceId'] >= user_input].reset_index(drop=True)
+    st.success("✅ فایل با
