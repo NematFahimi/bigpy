@@ -5,7 +5,6 @@ import jdatetime
 import re
 
 st.set_page_config(page_title="پردازش فایل CSV خدمات کاربران", layout="wide")
-
 st.title("🧾 برنامه پردازش گزارش خدمات کاربران")
 
 uploaded_file = st.file_uploader("📤 فایل CSV را آپلود کنید", type=["csv"])
@@ -19,9 +18,10 @@ def is_jalali_date(date_str):
     except:
         return False
 
-# تبدیل تاریخ شمسی به میلادی
+# تبدیل تاریخ شمسی به میلادی (نسخه بهینه شده برای داده‌های شما)
 def jalali_to_gregorian(date_str):
     try:
+        # فقط قسمت تاریخ را جدا کن
         match = re.search(r"(\d{4}/\d{2}/\d{2})", str(date_str))
         if not match:
             return None
