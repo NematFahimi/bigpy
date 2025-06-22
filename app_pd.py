@@ -10,24 +10,25 @@ st.title("🧾 برنامه پردازش گزارش خدمات کاربران")
 
 uploaded_file = st.file_uploader("📤 فایل CSV را آپلود کنید", type=["csv"])
 
-# بررسی اینکه آیا تاریخ شمسی است (مثلاً 1404/03/27 00:04:44)
+# تشخیص تاریخ شمسی
 def is_jalali_date(date_str):
     try:
         if not isinstance(date_str, str):
             return False
-        date_part = date_str.strip().split(" ")[0]
-        y, m, d = map(int, date_part.split("/"))
-        return y > 1300
+        return re.search(r"\d{4}/\d{2}/\d{2}", date_str) is not None
     except:
         return False
 
 # تبدیل تاریخ شمسی به میلادی
 def jalali_to_gregorian(date_str):
     try:
-        date_part = date_str.strip().split(" ")[0]
+        match = re.search(r"(\d{4}/\d{2}/\d{2})", date_str)
+        if not match:
+            return None
+        date_part = match.group(1)
         y, m, d = map(int, date_part.split("/"))
-        gregorian_date = jdatetime.date(y, m, d).togregorian()
-        return gregorian_date.strftime('%Y-%m-%d')
+        g_date = jdatetime.date(y, m, d).togregorian()
+        return g_date.strftime("%Y-%m-%d")
     except:
         return None
 
