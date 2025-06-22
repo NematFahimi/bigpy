@@ -56,13 +56,12 @@ if uploaded_file:
     user_input = st.number_input("🔢 لطفاً شماره UserServiceId را وارد کنید:", min_value=1, step=1)
 
     if st.button("🚀 پردازش فایل"):
-        index_target = df.index[df['UserServiceId'] == user_input].tolist()
-        if not index_target:
-            st.error(f"UserServiceId برابر {user_input} پیدا نشد.")
+        filtered_df = df[df['UserServiceId'] >= user_input].reset_index(drop=True)
+        if filtered_df.empty:
+            st.error(f"هیچ سطری با UserServiceId بزرگتر یا مساوی {user_input} یافت نشد.")
         else:
-            start_index = index_target[0] + 1
-            df = df.loc[start_index:].reset_index(drop=True)
-            st.info(f"تمام ردیف‌های قبل و شامل UserServiceId={user_input} حذف شدند.")
+            df = filtered_df
+            st.info(f"تمام ردیف‌هایی که UserServiceId کمتر از {user_input} داشتند حذف شدند.")
 
             if 'ServicePrice' in df.columns:
                 df['ServicePrice'] = np.nan
