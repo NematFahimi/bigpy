@@ -73,20 +73,17 @@ if uploaded_file:
                     if pd.isna(x):
                         return None
                     x = str(x).strip()
+
                     if is_jalali_date(x):
                         return jalali_to_gregorian(x)
                     else:
-                        am_pm_pattern = re.compile(r'\d{1,2}/\d{1,2}/\d{4} \d{1,2}:\d{2}:\d{2} (AM|PM)', re.IGNORECASE)
-                        if am_pm_pattern.match(x):
-                            return convert_american_datetime_to_iso(x)
-                        else:
-                            try:
-                                dt = pd.to_datetime(x, errors='coerce')
-                                if pd.isna(dt):
-                                    return None
-                                return dt.strftime("%Y-%m-%d")
-                            except:
+                        try:
+                            dt = pd.to_datetime(x, errors='coerce')
+                            if pd.isna(dt):
                                 return None
+                            return dt.strftime("%Y-%m-%d")
+                        except:
+                            return None
 
                 df['CDT'] = df['CDT'].apply(convert_date)
                 cols = list(df.columns)
