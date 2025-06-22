@@ -33,13 +33,15 @@ if uploaded_file:
             df = df.loc[start_index:].reset_index(drop=True)
             st.info(f"تمام ردیف‌های قبل و شامل UserServiceId={user_input} حذف شدند.")
 
-            # پاک‌سازی مقادیر
-            if 'ServicePrice' in df.columns:
-                df['ServicePrice'] = np.nan
-            if 'SavingOffUsed' in df.columns:
-                df['SavingOffUsed'] = np.nan
+            # 🔍 نمایش و پاک‌سازی ServicePrice و SavingOff
+            for col in ['ServicePrice', 'SavingOff']:
+                if col in df.columns:
+                    st.write(f"🔍 مقادیر اولیه ستون {col}:")
+                    st.dataframe(df[[col]].head(10))
+                    df[col] = np.nan
+                    st.success(f"مقادیر ستون {col} با موفقیت پاک شد.")
 
-            # تابع تبدیل تاریخ شمسی به میلادی
+            # تبدیل تاریخ شمسی به میلادی
             def persian_to_gregorian_str(persian_datetime_str):
                 try:
                     date_part = str(persian_datetime_str).split(' ')[0]
@@ -49,7 +51,6 @@ if uploaded_file:
                 except:
                     return None
 
-            # تبدیل ستون CDT
             if 'CDT' in df.columns:
                 df['CDT'] = df['CDT'].apply(persian_to_gregorian_str)
                 cols = list(df.columns)
@@ -59,7 +60,7 @@ if uploaded_file:
             st.success("✅ فایل با موفقیت پردازش شد.")
             st.write("📋 پیش‌نمایش خروجی:", df.head(15))
 
-            # دانلود فایل نهایی
+            # دکمه دانلود فایل نهایی
             csv = df.to_csv(index=False, encoding='utf-8-sig')
             st.download_button(
                 label="📥 دانلود فایل نهایی CSV",
