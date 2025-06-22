@@ -18,10 +18,9 @@ def is_jalali_date(date_str):
     except:
         return False
 
-# تبدیل تاریخ شمسی به میلادی (نسخه بهینه شده برای داده‌های شما)
+# تبدیل تاریخ شمسی به میلادی (فرمت با ساعت را هم می‌گیرد)
 def jalali_to_gregorian(date_str):
     try:
-        # فقط قسمت تاریخ را جدا کن
         match = re.search(r"(\d{4}/\d{2}/\d{2})", str(date_str))
         if not match:
             return None
@@ -32,10 +31,17 @@ def jalali_to_gregorian(date_str):
         return None
 
 if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-
-    st.success("✅ فایل با موفقیت خوانده شد.")
-    st.write("پیش‌نمایش فایل اصلی:", df.head())
+    try:
+        df = pd.read_csv(uploaded_file)
+        if not df.empty:
+            st.success("✅ فایل با موفقیت خوانده شد.")
+            st.write("پیش‌نمایش فایل اصلی:", df.head())
+        else:
+            st.warning("فایل آپلود شده خالی است!")
+            st.stop()
+    except Exception as e:
+        st.error(f"خطا در خواندن فایل: {e}")
+        st.stop()
 
     columns_to_drop = [
         'PayPlan', 'DirectOff', 'VAT', 'PayPrice', 'Off', 'SavingOff', 'CancelDT',
@@ -46,9 +52,13 @@ if uploaded_file:
     user_input = st.number_input("🔢 لطفاً شماره UserServiceId را وارد کنید:", min_value=1, step=1)
 
     if st.button("🚀 پردازش فایل"):
+        if 'UserServiceId' not in df.columns:
+            st.error("ستون UserServiceId در فایل موجود نیست.")
+            st.stop()
         filtered_df = df[df['UserServiceId'] >= user_input].reset_index(drop=True)
         if filtered_df.empty:
             st.error(f"هیچ سطری با UserServiceId بزرگتر یا مساوی {user_input} یافت نشد.")
+            st.stop()
         else:
             df = filtered_df
             st.info(f"تمام ردیف‌هایی که UserServiceId کمتر از {user_input} داشتند حذف شدند.")
@@ -79,13 +89,15 @@ if uploaded_file:
                 cols.insert(0, cols.pop(cols.index('CDT')))
                 df = df[cols]
 
-            st.success("✅ فایل با موفقیت پردازش شد.")
-            st.write("پیش‌نمایش خروجی:", df.head())
-
-            csv = df.to_csv(index=False, encoding='utf-8-sig')
-            st.download_button(
-                label="📥 دانلود فایل نهایی CSV",
-                data=csv,
-                file_name='final_output.csv',
-                mime='text/csv'
-            )
+            if not df.empty:
+                st.success("✅ فایل با موفقیت پردازش شد.")
+                st.write("پیش‌نمایش خروجی:", df.head())
+                csv = df.to_csv(index=False, encoding='utf-8-sig')
+                st.download_button(
+                    label="📥 دانلود فایل نهایی CSV",
+                    data=csv,
+                    file_name='final_output.csv',
+                    mime='text/csv'
+                )
+            else:
+                st.warning("دیتافریم نهایی خالی است و داده‌ای برای نمایش وجود ندارد.")
