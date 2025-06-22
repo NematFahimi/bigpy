@@ -4,7 +4,7 @@ import jdatetime
 import io
 
 st.set_page_config(page_title="Service Report Processor", layout="centered")
-st.title("برنامه پردازش گزارش سرویس")
+st.title("کار رو به کاردان بسپار")
 
 uploaded_file = st.file_uploader("فایل CSV خود را آپلود کنید", type=["csv"])
 
