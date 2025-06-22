@@ -22,19 +22,18 @@ def is_jalali_date(date_str):
 # تبدیل تاریخ شمسی به میلادی
 def jalali_to_gregorian(date_str):
     try:
-        match = re.search(r"(\d{4}/\d{2}/\d{2})", date_str)
+        match = re.search(r"(\d{4}/\d{2}/\d{2})", str(date_str))
         if not match:
             return None
-        date_part = match.group(1)
-        y, m, d = map(int, date_part.split("/"))
+        y, m, d = map(int, match.group(1).split("/"))
         g_date = jdatetime.date(y, m, d).togregorian()
-        return g_date.strftime("%Y-%m-%d")
+        return g_date.strftime('%Y-%m-%d')
     except:
         return None
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
-    
+
     st.success("✅ فایل با موفقیت خوانده شد.")
     st.write("پیش‌نمایش فایل اصلی:", df.head())
 
@@ -48,45 +47,3 @@ if uploaded_file:
 
     if st.button("🚀 پردازش فایل"):
         filtered_df = df[df['UserServiceId'] >= user_input].reset_index(drop=True)
-        if filtered_df.empty:
-            st.error(f"هیچ سطری با UserServiceId بزرگتر یا مساوی {user_input} یافت نشد.")
-        else:
-            df = filtered_df
-            st.info(f"تمام ردیف‌هایی که UserServiceId کمتر از {user_input} داشتند حذف شدند.")
-
-            if 'ServicePrice' in df.columns:
-                df['ServicePrice'] = np.nan
-            if 'SavingOffUsed' in df.columns:
-                df['SavingOffUsed'] = np.nan
-
-            if 'CDT' in df.columns:
-                def convert_date(x):
-                    if pd.isna(x):
-                        return None
-                    x = str(x).strip()
-                    if is_jalali_date(x):
-                        return jalali_to_gregorian(x)
-                    else:
-                        try:
-                            dt = pd.to_datetime(x, errors='coerce')
-                            if pd.isna(dt):
-                                return None
-                            return dt.strftime("%Y-%m-%d")
-                        except:
-                            return None
-
-                df['CDT'] = df['CDT'].apply(convert_date)
-                cols = list(df.columns)
-                cols.insert(0, cols.pop(cols.index('CDT')))
-                df = df[cols]
-
-            st.success("✅ فایل با موفقیت پردازش شد.")
-            st.write("پیش‌نمایش خروجی:", df.head())
-
-            csv = df.to_csv(index=False, encoding='utf-8-sig')
-            st.download_button(
-                label="📥 دانلود فایل نهایی CSV",
-                data=csv,
-                file_name='final_output.csv',
-                mime='text/csv'
-            )
