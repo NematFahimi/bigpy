@@ -10,34 +10,24 @@ st.title("🧾 برنامه پردازش گزارش خدمات کاربران")
 
 uploaded_file = st.file_uploader("📤 فایل CSV را آپلود کنید", type=["csv"])
 
+# بررسی اینکه آیا تاریخ شمسی است (مثلاً 1404/03/27 00:04:44)
 def is_jalali_date(date_str):
     try:
         if not isinstance(date_str, str):
             return False
-        date_part = date_str.split(" ")[0]
-        year = int(date_part.split("/")[0])
-        return year > 1300
+        date_part = date_str.strip().split(" ")[0]
+        y, m, d = map(int, date_part.split("/"))
+        return y > 1300
     except:
         return False
 
+# تبدیل تاریخ شمسی به میلادی
 def jalali_to_gregorian(date_str):
     try:
-        parts = date_str.split(" ")
-        date_part = parts[0]
+        date_part = date_str.strip().split(" ")[0]
         y, m, d = map(int, date_part.split("/"))
-        dt = jdatetime.date(y, m, d).togregorian()
-        return dt.strftime("%Y-%m-%d")
-    except:
-        return None
-
-def convert_american_datetime_to_iso(date_str):
-    try:
-        dt = pd.to_datetime(date_str, format="%m/%d/%Y %I:%M:%S %p", errors='coerce')
-        if pd.isna(dt):
-            dt = pd.to_datetime(date_str, errors='coerce')
-        if pd.isna(dt):
-            return None
-        return dt.strftime("%Y-%m-%d")
+        gregorian_date = jdatetime.date(y, m, d).togregorian()
+        return gregorian_date.strftime('%Y-%m-%d')
     except:
         return None
 
@@ -73,7 +63,6 @@ if uploaded_file:
                     if pd.isna(x):
                         return None
                     x = str(x).strip()
-
                     if is_jalali_date(x):
                         return jalali_to_gregorian(x)
                     else:
