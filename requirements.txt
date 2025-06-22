@@ -2,3 +2,5 @@ streamlit
 pandas
 numpy
 jdatetime
+google-cloud-bigquery
+fpdf
