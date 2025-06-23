@@ -137,7 +137,6 @@ if st.button("اجرای کوئری"):
         rows = [dict(row) for row in results]
         if rows:
             df = pd.DataFrame(rows)
-            # سورت بر اساس UserServiceId (اگر وجود دارد)
             if 'UserServiceId' in df.columns:
                 df = df.sort_values(by='UserServiceId', ascending=True)
             st.write("جدول نتایج:", df)
@@ -183,27 +182,54 @@ if st.button("گزارش خلاصه (Pivot Table)"):
         pivot_rows = [dict(row) for row in results]
         if pivot_rows:
             pivot_df = pd.DataFrame(pivot_rows)
-            # سورت بر اساس Creator سپس ServiceName سپس UserServiceId_count
             pivot_df = pivot_df.sort_values(by=['Creator', 'ServiceName', 'UserServiceId_count'], ascending=[True, True, True])
-            # اضافه کردن ردیف مجموع
-            total_dict = {
-                'Creator': 'Total',
-                'ServiceName': '',
-                'UserServiceId_count': pivot_df['UserServiceId_count'].sum(),
-                'Package_sum': pivot_df['Package_sum'].sum()
-            }
-            for col in pivot_df.columns:
-                if col not in total_dict:
-                    total_dict[col] = ''
-            pivot_df = pd.concat([pivot_df, pd.DataFrame([total_dict])], ignore_index=True)
-            st.write("خلاصه (Pivot Table):", pivot_df)
+            
+            if len(selected_creators) >= 2:
+                rows_with_totals = []
+                for creator, group in pivot_df.groupby('Creator', sort=False):
+                    rows_with_totals.extend(group.to_dict('records'))
+                    total_row = {
+                        'Creator': f"{creator} - Total",
+                        'ServiceName': '',
+                        'UserServiceId_count': group['UserServiceId_count'].sum(),
+                        'Package_sum': group['Package_sum'].sum()
+                    }
+                    for col in pivot_df.columns:
+                        if col not in total_row:
+                            total_row[col] = ''
+                    rows_with_totals.append(total_row)
+                grand_total = {
+                    'Creator': 'Grand Total',
+                    'ServiceName': '',
+                    'UserServiceId_count': pivot_df['UserServiceId_count'].sum(),
+                    'Package_sum': pivot_df['Package_sum'].sum()
+                }
+                for col in pivot_df.columns:
+                    if col not in grand_total:
+                        grand_total[col] = ''
+                rows_with_totals.append(grand_total)
+                final_pivot_df = pd.DataFrame(rows_with_totals)
+            else:
+                final_pivot_df = pivot_df.copy()
+                grand_total = {
+                    'Creator': 'Grand Total',
+                    'ServiceName': '',
+                    'UserServiceId_count': final_pivot_df['UserServiceId_count'].sum(),
+                    'Package_sum': final_pivot_df['Package_sum'].sum()
+                }
+                for col in final_pivot_df.columns:
+                    if col not in grand_total:
+                        grand_total[col] = ''
+                final_pivot_df = pd.concat([final_pivot_df, pd.DataFrame([grand_total])], ignore_index=True)
+
+            st.write("خلاصه (Pivot Table):", final_pivot_df)
             st.download_button(
                 label="📥 دانلود Pivot به صورت CSV",
-                data=pivot_df.to_csv(index=False).encode('utf-8'),
+                data=final_pivot_df.to_csv(index=False).encode('utf-8'),
                 file_name="pivot_summary.csv",
                 mime="text/csv"
             )
-            export_df_to_pdf(pivot_df, "pivot_summary.pdf", add_total=False)
+            export_df_to_pdf(final_pivot_df, "pivot_summary.pdf", add_total=False)
             with open("pivot_summary.pdf", "rb") as pdf_file:
                 st.download_button(
                     label="📥 دانلود Pivot به صورت PDF",
