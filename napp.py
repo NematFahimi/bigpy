@@ -62,17 +62,25 @@ def export_df_to_pdf(df, filename, add_total=False):
         pdf.set_font("Arial", size=8)
     except:
         pdf.set_font("helvetica", size=8)
-    pdf.set_draw_color(77, 77, 77)
+    pdf.set_draw_color(51, 51, 51)  # 20% سیاه
+
     fill = False
     line_height = 6.35
     for idx, row in df.iterrows():
-        if fill:
+        is_total_row = (
+            (str(row[0]).strip().endswith("Total")) or
+            (str(row[0]).strip().lower() == "grand total")
+        )
+        # رنگ ردیف‌های مجموع ۱۰٪ تیره‌تر
+        if is_total_row:
+            pdf.set_fill_color(200, 210, 210)  # حدود ۱۰٪ تیره‌تر از ردیف معمولی
+        elif fill:
             pdf.set_fill_color(240, 240, 240)
         else:
             pdf.set_fill_color(255, 255, 255)
         for i, col in enumerate(df.columns):
             text = safe_text(row[col]) if row[col] is not None else ""
-            pdf.cell(pdf.col_widths[i], line_height, text, border=1, align='L', fill=fill)
+            pdf.cell(pdf.col_widths[i], line_height, text, border=1, align='L', fill=True)
         pdf.ln(line_height)
         fill = not fill
     pdf.output(filename)
