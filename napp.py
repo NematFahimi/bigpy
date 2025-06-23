@@ -31,8 +31,8 @@ def export_df_to_pdf(df, filename):
             except:
                 self.set_font("helvetica", size=8)
             for i, col in enumerate(df.columns):
-                self.cell(self.col_widths[i], 8, str(col), border=1, align='C', fill=True)
-            self.ln()
+                self.cell(self.col_widths[i], 6.35, str(col), border=1, align='C', fill=True)
+            self.ln(6.35)
 
     if df.empty:
         return
@@ -64,48 +64,17 @@ def export_df_to_pdf(df, filename):
     pdf.set_draw_color(77, 77, 77)  # 30% سیاه
 
     fill = False
-    font_size = 8
-    line_height = font_size * 0.5 + 4  # حدودی و قابل تنظیم
+    line_height = 6.35  # معادل 0.25 اینچ
 
     for idx, row in df.iterrows():
-        # تعداد خطوط مورد نیاز هر سلول
-        cell_lines = []
-        for i, col in enumerate(df.columns):
-            text = str(row[col]) if row[col] is not None else ""
-            cw = pdf.col_widths[i]
-            try:
-                pdf.set_font("Arial", size=font_size)
-            except:
-                pdf.set_font("helvetica", size=font_size)
-            # فقط تقسیم متن به خطوط (بدون چاپ)
-            text_lines = pdf.multi_cell(cw, line_height, text, border=0, align='L', split_only=True)
-            cell_lines.append(len(text_lines))
-        max_lines = max(cell_lines)
-        max_height = max_lines * line_height
-
-        # رنگ پس‌زمینه
         if fill:
             pdf.set_fill_color(240, 240, 240)
         else:
             pdf.set_fill_color(255, 255, 255)
-
-        x_start = pdf.get_x()
-        y_start = pdf.get_y()
-
-        # چاپ سلول‌ها با ارتفاع یکنواخت
         for i, col in enumerate(df.columns):
             text = str(row[col]) if row[col] is not None else ""
-            cw = pdf.col_widths[i]
-            x = pdf.get_x()
-            y = pdf.get_y()
-            # مختصات اولیه
-            # multi_cell چاپ با حداکثر ارتفاع ردیف (در انتها به سطر بعد نمی‌رود)
-            pdf.multi_cell(cw, line_height, text, border=1, align='L', fill=fill, max_line_height=pdf.font_size_pt)
-            # رفتن به جایگاه بعدی سلول
-            pdf.set_xy(x + cw, y)
-        # حرکت به سطر بعد
-        pdf.set_xy(x_start, y_start + max_height)
-
+            pdf.cell(pdf.col_widths[i], line_height, text, border=1, align='L', fill=fill)
+        pdf.ln(line_height)
         fill = not fill
 
     pdf.output(filename)
