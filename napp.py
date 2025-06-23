@@ -17,60 +17,56 @@ def get_unique_creators():
         st.error(f"خطا در دریافت Creatorها: {e}")
         return []
 
-# تابع جدید و بهینه‌شده ساخت PDF
-def export_df_to_pdf_optimized(df, filename):
-    pdf = FPDF(orientation='P', unit='mm', format='A4')
-    margin = 2  # 2mm margin
+def export_df_to_pdf(df, filename):
+    class PDF(FPDF):
+        def header(self):
+            self.set_fill_color(220, 220, 220) # هدر خاکستری
+            self.set_text_color(0)
+            self.set_font("Arial", size=8)
+            for i, col in enumerate(df.columns):
+                self.cell(col_widths[i], 8, str(col), border=1, align='C', fill=True)
+            self.ln()
+    
+    pdf = PDF(orientation='P', unit='mm', format='A4')
+    margin = 2
     pdf.set_auto_page_break(auto=True, margin=margin)
     pdf.set_margins(margin, margin, margin)
     pdf.add_page()
-
-    # A4 Portrait usable width
-    usable_width = 210 - 2 * margin
     pdf.set_font("Arial", size=8)
+    pdf.set_draw_color(77, 77, 77)  # 30% مشکی
 
-    col_count = len(df.columns)
-
-    # Calculate column widths based on maximum text length in each column
-    max_lengths = []
-    max_total_length = 0
+    # محاسبه بیشینه عرض هر ستون
+    max_lens = []
     for col in df.columns:
-        max_len = max([len(str(col))] + [len(str(val)) for val in df[col].head(100)])
-        max_lengths.append(max_len)
-        max_total_length += max_len
+        col_len = pdf.get_string_width(str(col)) + 2
+        max_val = max([pdf.get_string_width(str(val)) for val in df[col].astype(str)] + [col_len])
+        max_lens.append(max_val)
 
-    col_widths = [(max_len / max_total_length) * usable_width for max_len in max_lengths]
+    # تنظیم عرض ستون‌ها برای پر کردن کل عرض صفحه
+    usable_width = 210 - 2 * margin  # A4 Portrait
+    total_width = sum(max_lens)
+    global col_widths
+    col_widths = [w * usable_width / total_width for w in max_lens]
 
-    # Draw header row
-    def draw_header():
-        pdf.set_fill_color(200, 200, 200)  # light gray background for header
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_font("Arial", 'B', 8)  # Bold for header
-        for i, col in enumerate(df.columns):
-            pdf.cell(col_widths[i], 8, str(col), border=1, align='C', fill=True)
-        pdf.ln()
+    # هدر جدول (بار اول)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.set_text_color(0)
+    pdf.set_font("Arial", size=8)
+    for i, col in enumerate(df.columns):
+        pdf.cell(col_widths[i], 8, str(col), border=1, align='C', fill=True)
+    pdf.ln()
 
-    draw_header()
-
-    # Draw rows with alternating background
-    pdf.set_font("Arial", '', 8)  # Normal for rows
-
-    for idx, (_, row) in enumerate(df.iterrows()):
-        fill = idx % 2 == 1  # True for odd rows
-        if fill:
-            pdf.set_fill_color(240, 240, 240)  # 90% white
-        else:
-            pdf.set_fill_color(255, 255, 255)  # pure white
-
-        for i, col in enumerate(df.columns):
-            text = str(row[col]) if row[col] is not None else ""
-            pdf.cell(col_widths[i], 8, text, border=1, align='C', fill=True)
-        pdf.ln()
-
-        # If near bottom of page, add new page & repeat header
-        if pdf.get_y() > 297 - margin - 15:  # page height for A4 Portrait
+    # سطرهای جدول با رنگ‌بندی یکی در میان و مدیریت صفحه
+    fill = False
+    for idx, row in df.iterrows():
+        if pdf.get_y() > (297 - margin - 12):  # نزدیک انتهای صفحه
             pdf.add_page()
-            draw_header()
+        pdf.set_fill_color(240, 240, 240) if fill else pdf.set_fill_color(255, 255, 255)
+        for i, col in enumerate(df.columns):
+            cell_text = str(row[col]) if row[col] is not None else ""
+            pdf.cell(col_widths[i], 8, cell_text, border=1, align='C', fill=fill)
+        pdf.ln()
+        fill = not fill
 
     pdf.output(filename)
 
@@ -135,7 +131,7 @@ if st.button("اجرای کوئری"):
         if rows:
             df = pd.DataFrame(rows)
             st.write("جدول نتایج:", df)
-            export_df_to_pdf_optimized(df, "output.pdf")  # تابع جدید
+            export_df_to_pdf(df, "output.pdf")
             with open("output.pdf", "rb") as pdf_file:
                 st.download_button(
                     label="📥 دانلود PDF",
