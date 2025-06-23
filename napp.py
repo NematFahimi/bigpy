@@ -145,6 +145,14 @@ if st.button("دانلود گزارش"):
             if 'UserServiceId' in df.columns:
                 df = df.sort_values(by='UserServiceId', ascending=True)
             st.write("جدول نتایج:", df)
+
+            # --- نمایش مجموع فروش و تعداد بسته‌ها فقط در صفحه ---
+            total_package = df['Package'].astype(float).sum() if 'Package' in df.columns else 0
+            count_usv = df['UserServiceId'].count() if 'UserServiceId' in df.columns else 0
+
+            st.info(f"**مجموع فروش:** {total_package:,.2f}")
+            st.info(f"**تعداد بسته‌ها:** {count_usv}")
+
             export_df_to_pdf(df, "output.pdf")
             with open("output.pdf", "rb") as pdf_file:
                 st.download_button(
