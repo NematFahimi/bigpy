@@ -77,6 +77,34 @@ def export_df_to_pdf(df, filename):
         pdf.ln(line_height)
         fill = not fill
 
+    # -------- افزودن سطر مجموع در انتهای جدول ---------
+    pdf.set_fill_color(200, 220, 255)  # رنگ پس‌زمینه مجموع متفاوت
+    try:
+        pdf.set_font("Arial", size=8)
+    except:
+        pdf.set_font("helvetica", size=8)
+
+    sum_row = []
+    # اگر نام ستون دقیقاً 'package' و 'UserServiceId' باشد:
+    package_sum = df['package'].astype(float).sum() if 'package' in df.columns else ''
+    usid_count = df['UserServiceId'].count() if 'UserServiceId' in df.columns else ''
+    first = True
+    for col in df.columns:
+        if col == 'package':
+            sum_row.append(str(package_sum))
+        elif col == 'UserServiceId':
+            sum_row.append(str(usid_count))
+        elif first:
+            sum_row.append('مجموع')
+            first = False
+        else:
+            sum_row.append('')
+
+    for i, text in enumerate(sum_row):
+        pdf.cell(pdf.col_widths[i], line_height, text, border=1, align='C', fill=True)
+    pdf.ln(line_height)
+    # -------- پایان سطر مجموع ---------
+
     pdf.output(filename)
 
 st.title("📊 گزارش BigQuery")
@@ -152,4 +180,3 @@ if st.button("اجرای کوئری"):
             st.warning("نتیجه‌ای یافت نشد.")
     except Exception as e:
         st.error(f"خطا در اجرای کوئری: {e}")
-
