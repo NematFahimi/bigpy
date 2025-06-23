@@ -152,3 +152,4 @@ if st.button("اجرای کوئری"):
             st.warning("نتیجه‌ای یافت نشد.")
     except Exception as e:
         st.error(f"خطا در اجرای کوئری: {e}")
+
