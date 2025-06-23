@@ -247,3 +247,4 @@ if st.button("گزارش خلاصه (Pivot Table)"):
             st.warning("داده‌ای برای خلاصه یافت نشد.")
     except Exception as e:
         st.error(f"خطا در Pivot Table: {e}")
+        
