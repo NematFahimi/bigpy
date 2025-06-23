@@ -19,44 +19,40 @@ def get_unique_creators():
 
 def export_df_to_pdf(df, filename):
     class PDF(FPDF):
+        def __init__(self, col_widths, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.col_widths = col_widths
+
         def header(self):
-            self.set_fill_color(220, 220, 220) # هدر خاکستری
+            self.set_fill_color(220, 220, 220)  # هدر خاکستری
             self.set_text_color(0)
             self.set_font("Arial", size=8)
             for i, col in enumerate(df.columns):
-                self.cell(col_widths[i], 8, str(col), border=1, align='C', fill=True)
+                self.cell(self.col_widths[i], 8, str(col), border=1, align='C', fill=True)
             self.ln()
-    
-    pdf = PDF(orientation='P', unit='mm', format='A4')
+
     margin = 2
+    usable_width = 210 - 2 * margin  # A4 Portrait
+
+    # محاسبه بیشینه عرض هر ستون
+    pdf_tmp = FPDF()
+    pdf_tmp.set_font("Arial", size=8)
+    max_lens = []
+    for col in df.columns:
+        col_len = pdf_tmp.get_string_width(str(col)) + 2
+        max_val = max([pdf_tmp.get_string_width(str(val)) for val in df[col].astype(str)] + [col_len])
+        max_lens.append(max_val)
+    total_width = sum(max_lens)
+    col_widths = [w * usable_width / total_width for w in max_lens]
+
+    pdf = PDF(col_widths, orientation='P', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=margin)
     pdf.set_margins(margin, margin, margin)
     pdf.add_page()
     pdf.set_font("Arial", size=8)
     pdf.set_draw_color(77, 77, 77)  # 30% مشکی
 
-    # محاسبه بیشینه عرض هر ستون
-    max_lens = []
-    for col in df.columns:
-        col_len = pdf.get_string_width(str(col)) + 2
-        max_val = max([pdf.get_string_width(str(val)) for val in df[col].astype(str)] + [col_len])
-        max_lens.append(max_val)
-
-    # تنظیم عرض ستون‌ها برای پر کردن کل عرض صفحه
-    usable_width = 210 - 2 * margin  # A4 Portrait
-    total_width = sum(max_lens)
-    global col_widths
-    col_widths = [w * usable_width / total_width for w in max_lens]
-
-    # هدر جدول (بار اول)
-    pdf.set_fill_color(220, 220, 220)
-    pdf.set_text_color(0)
-    pdf.set_font("Arial", size=8)
-    for i, col in enumerate(df.columns):
-        pdf.cell(col_widths[i], 8, str(col), border=1, align='C', fill=True)
-    pdf.ln()
-
-    # سطرهای جدول با رنگ‌بندی یکی در میان و مدیریت صفحه
+    # ردیف‌های جدول
     fill = False
     for idx, row in df.iterrows():
         if pdf.get_y() > (297 - margin - 12):  # نزدیک انتهای صفحه
@@ -64,7 +60,7 @@ def export_df_to_pdf(df, filename):
         pdf.set_fill_color(240, 240, 240) if fill else pdf.set_fill_color(255, 255, 255)
         for i, col in enumerate(df.columns):
             cell_text = str(row[col]) if row[col] is not None else ""
-            pdf.cell(col_widths[i], 8, cell_text, border=1, align='C', fill=fill)
+            pdf.cell(pdf.col_widths[i], 8, cell_text, border=1, align='C', fill=fill)
         pdf.ln()
         fill = not fill
 
