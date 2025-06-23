@@ -4,14 +4,12 @@ import pandas as pd
 from datetime import datetime
 from fpdf import FPDF
 
-# تابع حذف کاراکترهای غیرلاتین برای جلوگیری از ارور pdf
 def safe_text(text):
     try:
         return str(text).encode('latin-1', 'ignore').decode('latin-1')
     except Exception:
         return ''
 
-# خواندن اطلاعات کلید از secrets
 credentials_info = dict(st.secrets["gcp_service_account"])
 client = bigquery.Client.from_service_account_info(credentials_info)
 table_path = "frsphotspots.HSP.hspdata"
@@ -29,9 +27,8 @@ def export_df_to_pdf(df, filename):
         def __init__(self, col_widths, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.col_widths = col_widths
-
         def header(self):
-            self.set_fill_color(220, 220, 220)  # هدر خاکستری
+            self.set_fill_color(220, 220, 220)
             self.set_text_color(0)
             try:
                 self.set_font("Arial", size=8)
@@ -41,13 +38,10 @@ def export_df_to_pdf(df, filename):
                 pdf_text = safe_text(col)
                 self.cell(self.col_widths[i], 6.35, pdf_text, border=1, align='C', fill=True)
             self.ln(6.35)
-
     if df.empty:
         return
-
     margin = 2
     usable_width = 210 - 2 * margin  # Portrait A4
-
     pdf_tmp = FPDF()
     try:
         pdf_tmp.set_font("Arial", size=8)
@@ -60,7 +54,6 @@ def export_df_to_pdf(df, filename):
         max_lens.append(max_val)
     total_width = sum(max_lens)
     col_widths = [w * usable_width / total_width for w in max_lens]
-
     pdf = PDF(col_widths, orientation='P', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=margin)
     pdf.set_margins(margin, margin, margin)
@@ -69,11 +62,9 @@ def export_df_to_pdf(df, filename):
         pdf.set_font("Arial", size=8)
     except:
         pdf.set_font("helvetica", size=8)
-    pdf.set_draw_color(77, 77, 77)  # 30% سیاه
-
+    pdf.set_draw_color(77, 77, 77)
     fill = False
-    line_height = 6.35  # معادل 0.25 اینچ
-
+    line_height = 6.35
     for idx, row in df.iterrows():
         if fill:
             pdf.set_fill_color(240, 240, 240)
@@ -84,40 +75,6 @@ def export_df_to_pdf(df, filename):
             pdf.cell(pdf.col_widths[i], line_height, text, border=1, align='L', fill=fill)
         pdf.ln(line_height)
         fill = not fill
-
-    # -------- افزودن سطر مجموع در انتهای جدول ---------
-    pdf.set_fill_color(200, 220, 255)  # رنگ پس‌زمینه مجموع متفاوت
-    try:
-        pdf.set_font("Arial", size=8)
-    except:
-        pdf.set_font("helvetica", size=8)
-
-    sum_row = []
-    # جمع عددی صحیح ستون package حتی اگر رشته یا NaN داشته باشد
-    if 'package' in df.columns:
-        package_numeric = pd.to_numeric(df['package'], errors='coerce')
-        package_sum = package_numeric.sum()
-        package_sum = f"{package_sum:.2f}" if package_numeric.notna().any() else ''
-    else:
-        package_sum = ''
-    usid_count = df['UserServiceId'].count() if 'UserServiceId' in df.columns else ''
-    first = True
-    for col in df.columns:
-        if col == 'package':
-            sum_row.append(str(package_sum))
-        elif col == 'UserServiceId':
-            sum_row.append(str(usid_count))
-        elif first:
-            sum_row.append(safe_text('مجموع'))
-            first = False
-        else:
-            sum_row.append('')
-
-    for i, text in enumerate(sum_row):
-        pdf.cell(pdf.col_widths[i], line_height, text, border=1, align='C', fill=True)
-    pdf.ln(line_height)
-    # -------- پایان سطر مجموع ---------
-
     pdf.output(filename)
 
 st.title("📊 گزارش BigQuery")
@@ -193,3 +150,54 @@ if st.button("اجرای کوئری"):
             st.warning("نتیجه‌ای یافت نشد.")
     except Exception as e:
         st.error(f"خطا در اجرای کوئری: {e}")
+
+# ---------- Pivot Table ---------------------
+if st.button("گزارش خلاصه (Pivot Table)"):
+    conditions, params = [], []
+    if selected_creators:
+        conditions.append("Creator IN UNNEST(@creator_list)")
+        params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
+    if numeric_sql:
+        conditions.append(numeric_sql)
+        params += numeric_params
+    if date_sql:
+        conditions.append(date_sql)
+        params += date_params
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    pivot_query = f"""
+    SELECT
+      Creator,
+      ServiceName,
+      COUNT(UserServiceId) AS UserServiceId_count,
+      SUM(CAST(Package AS FLOAT64)) AS Package_sum
+    FROM {table_path}
+    {where_clause}
+    GROUP BY Creator, ServiceName
+    ORDER BY Creator, ServiceName
+    """
+    try:
+        results = client.query(pivot_query, bigquery.QueryJobConfig(query_parameters=params)).result()
+        pivot_rows = [dict(row) for row in results]
+        if pivot_rows:
+            pivot_df = pd.DataFrame(pivot_rows)
+            st.write("خلاصه (Pivot Table):", pivot_df)
+            # دانلود CSV
+            st.download_button(
+                label="📥 دانلود Pivot به صورت CSV",
+                data=pivot_df.to_csv(index=False).encode('utf-8'),
+                file_name="pivot_summary.csv",
+                mime="text/csv"
+            )
+            # دانلود PDF Pivot Table
+            export_df_to_pdf(pivot_df, "pivot_summary.pdf")
+            with open("pivot_summary.pdf", "rb") as pdf_file:
+                st.download_button(
+                    label="📥 دانلود Pivot به صورت PDF",
+                    data=pdf_file,
+                    file_name="pivot_summary.pdf",
+                    mime="application/pdf"
+                )
+        else:
+            st.warning("داده‌ای برای خلاصه یافت نشد.")
+    except Exception as e:
+        st.error(f"خطا در Pivot Table: {e}")
