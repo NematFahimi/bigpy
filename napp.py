@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 from fpdf import FPDF
 
-# تابع کمکی برای حذف کاراکترهای غیرلاتین
+# تابع حذف کاراکترهای غیرلاتین برای جلوگیری از ارور pdf
 def safe_text(text):
     try:
         return str(text).encode('latin-1', 'ignore').decode('latin-1')
@@ -93,7 +93,13 @@ def export_df_to_pdf(df, filename):
         pdf.set_font("helvetica", size=8)
 
     sum_row = []
-    package_sum = df['package'].astype(float).sum() if 'package' in df.columns else ''
+    # جمع عددی صحیح ستون package حتی اگر رشته یا NaN داشته باشد
+    if 'package' in df.columns:
+        package_numeric = pd.to_numeric(df['package'], errors='coerce')
+        package_sum = package_numeric.sum()
+        package_sum = f"{package_sum:.2f}" if package_numeric.notna().any() else ''
+    else:
+        package_sum = ''
     usid_count = df['UserServiceId'].count() if 'UserServiceId' in df.columns else ''
     first = True
     for col in df.columns:
