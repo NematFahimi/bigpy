@@ -87,8 +87,8 @@ if creators_input.strip():
     selected_creators = [c.strip() for c in creators_input.replace('\n', ',').split(',') if c.strip()]
 
 with st.expander("شماره مسلسل سرویس ها را وارد کنید"):
-    numeric_option = st.selectbox("نوع شرط", ["بدون فیلتر", "=", ">=", "<=", "بین (BETWEEN)"])
-    if numeric_option == "بین (BETWEEN)":
+    numeric_option = st.selectbox("نوع شرط", ["بدون فیلتر", "=", ">=", "<=", "BETWEEN"])
+    if numeric_option == "BETWEEN":
         num_min = st.number_input("حد پایین", step=1, value=0)
         num_max = st.number_input("حد بالا", step=1, value=0)
         numeric_sql = "UserServiceId BETWEEN @usv1 AND @usv2"
