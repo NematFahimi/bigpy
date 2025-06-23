@@ -26,17 +26,26 @@ def export_df_to_pdf(df, filename):
         def header(self):
             self.set_fill_color(220, 220, 220)  # هدر خاکستری
             self.set_text_color(0)
-            self.set_font("Arial", size=8)
+            try:
+                self.set_font("Arial", size=8)
+            except:
+                self.set_font("helvetica", size=8)
             for i, col in enumerate(df.columns):
                 self.cell(self.col_widths[i], 8, str(col), border=1, align='C', fill=True)
             self.ln()
 
-    margin = 2
-    usable_width = 210 - 2 * margin  # A4 Portrait
+    if df.empty:
+        return
 
-    # محاسبه بیشینه عرض هر ستون
+    margin = 2
+    usable_width = 210 - 2 * margin  # Portrait A4
+
+    # محاسبه عرض هر ستون بر اساس بیشترین متن هر ستون
     pdf_tmp = FPDF()
-    pdf_tmp.set_font("Arial", size=8)
+    try:
+        pdf_tmp.set_font("Arial", size=8)
+    except:
+        pdf_tmp.set_font("helvetica", size=8)
     max_lens = []
     for col in df.columns:
         col_len = pdf_tmp.get_string_width(str(col)) + 2
@@ -49,15 +58,21 @@ def export_df_to_pdf(df, filename):
     pdf.set_auto_page_break(auto=True, margin=margin)
     pdf.set_margins(margin, margin, margin)
     pdf.add_page()
-    pdf.set_font("Arial", size=8)
-    pdf.set_draw_color(77, 77, 77)  # 30% مشکی
+    try:
+        pdf.set_font("Arial", size=8)
+    except:
+        pdf.set_font("helvetica", size=8)
+    pdf.set_draw_color(77, 77, 77)  # 30% سیاه
 
-    # ردیف‌های جدول
+    # جدول
     fill = False
     for idx, row in df.iterrows():
-        if pdf.get_y() > (297 - margin - 12):  # نزدیک انتهای صفحه
+        if pdf.get_y() > (297 - margin - 12):
             pdf.add_page()
-        pdf.set_fill_color(240, 240, 240) if fill else pdf.set_fill_color(255, 255, 255)
+        if fill:
+            pdf.set_fill_color(240, 240, 240)
+        else:
+            pdf.set_fill_color(255, 255, 255)
         for i, col in enumerate(df.columns):
             cell_text = str(row[col]) if row[col] is not None else ""
             pdf.cell(pdf.col_widths[i], 8, cell_text, border=1, align='C', fill=fill)
