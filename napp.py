@@ -104,8 +104,8 @@ with st.expander("شماره مسلسل سرویس ها را وارد کنید")
         numeric_sql, numeric_params = None, []
 
 with st.expander("تاریخ را انتخاب  کنید"):
-    date_option = st.selectbox("نوع فیلتر تاریخ", ["بدون فیلتر", "تاریخ خاص (=)", "تاریخ سفارشی"])
-    if date_option == "تاریخ خاص (=)":
+    date_option = st.selectbox("نوع فیلتر تاریخ", ["بدون فیلتر", "تاریخ خاص", "تاریخ سفارشی"])
+    if date_option == "تاریخ خاص":
         date_value = st.date_input("تاریخ")
         date_sql = "CreatDate = @dt1"
         date_params = [bigquery.ScalarQueryParameter("dt1", "DATE", date_value)]
