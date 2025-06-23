@@ -76,11 +76,11 @@ def export_df_to_pdf(df, filename, add_total=False):
         fill = not fill
     pdf.output(filename)
 
-st.title("📊 گزارش BigQuery")
+st.title("📊 پنل گزارشات مشترکین")
 
 # فقط ورودی متنی برای Creator، بدون هیچ لیست یا پیشنهاد!
 creators_input = st.text_area(
-    "لیست Creator را وارد کنید (هر کدام را با ویرگول یا اینتر جدا کنید):",
+    "لطفا یوزر های که میخواهید گزارش آنرا ببینید را وارد کنید",
     placeholder="مثال: Ali, Zahra, Mohsen"
 )
 selected_creators = []
@@ -88,7 +88,7 @@ if creators_input.strip():
     selected_creators = [c.strip() for c in creators_input.replace('\n', ',').split(',') if c.strip()]
 
 # فیلتر عددی
-with st.expander("فیلتر عددی (UserServiceId)"):
+with st.expander("شماره مسلسل سرویس ها را وارد کنید"):
     numeric_option = st.selectbox("نوع شرط", ["بدون فیلتر", "=", ">=", "<=", "بین (BETWEEN)"])
     if numeric_option == "بین (BETWEEN)":
         num_min = st.number_input("حد پایین", step=1, value=0)
@@ -106,7 +106,7 @@ with st.expander("فیلتر عددی (UserServiceId)"):
         numeric_sql, numeric_params = None, []
 
 # فیلتر تاریخ
-with st.expander("فیلتر تاریخ (CreatDate)"):
+with st.expander("تاریخ را انتخاب  کنید"):
     date_option = st.selectbox("نوع فیلتر تاریخ", ["بدون فیلتر", "تاریخ خاص (=)", "بین دو تاریخ (BETWEEN)"])
     if date_option == "تاریخ خاص (=)":
         date_value = st.date_input("تاریخ")
@@ -123,7 +123,7 @@ with st.expander("فیلتر تاریخ (CreatDate)"):
     else:
         date_sql, date_params = None, []
 
-if st.button("اجرای کوئری"):
+if st.button("دانلود گزارش"):
     conditions, params = [], []
     if selected_creators:
         conditions.append("Creator IN UNNEST(@creator_list)")
@@ -156,10 +156,10 @@ if st.button("اجرای کوئری"):
         else:
             st.warning("نتیجه‌ای یافت نشد.")
     except Exception as e:
-        st.error(f"خطا در اجرای کوئری: {e}")
+        st.error(f"خطا در دانلود گزارش: {e}")
 
 # ---------- Pivot Table ---------------------
-if st.button("گزارش خلاصه (Pivot Table)"):
+if st.button("گزارش خلاصه"):
     conditions, params = [], []
     if selected_creators:
         conditions.append("Creator IN UNNEST(@creator_list)")
@@ -229,7 +229,7 @@ if st.button("گزارش خلاصه (Pivot Table)"):
 
             st.write("خلاصه (Pivot Table):", final_pivot_df)
             st.download_button(
-                label="📥 دانلود Pivot به صورت CSV",
+                label="📥دانلود فایل CSV",
                 data=final_pivot_df.to_csv(index=False).encode('utf-8'),
                 file_name="pivot_summary.csv",
                 mime="text/csv"
@@ -237,7 +237,7 @@ if st.button("گزارش خلاصه (Pivot Table)"):
             export_df_to_pdf(final_pivot_df, "pivot_summary.pdf", add_total=False)
             with open("pivot_summary.pdf", "rb") as pdf_file:
                 st.download_button(
-                    label="📥 دانلود Pivot به صورت PDF",
+                    label="📥دانلود فایل PDF",
                     data=pdf_file,
                     file_name="pivot_summary.pdf",
                     mime="application/pdf"
