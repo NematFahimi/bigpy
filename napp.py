@@ -120,23 +120,52 @@ with st.expander("تاریخ را انتخاب  کنید"):
     else:
         date_sql, date_params = None, []
 
-# فاصله بین دکمه‌ها دقیقاً ۳ میلی‌متر (تقریباً معادل 9px)
+# --- بخش دکمه‌ها با فاصله و عرض اتوماتیک ---
 st.markdown("""
 <style>
-div[data-testid="column"] {
-    width: 33.33% !important;
-    padding-left: 1.5mm !important;
-    padding-right: 1.5mm !important;
+.row-buttons {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 0.7em;
+}
+.row-buttons > div {
+    margin-right: 3mm;
+    flex: 0 0 auto;
+    width: auto !important;
+}
+.row-buttons > div:last-child {
+    margin-right: 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
-cols = st.columns([1,1,1])
-with cols[0]:
-    btn_show_summary = st.button("مشاهده خلاصه")
-with cols[1]:
-    btn_download_report = st.button("دانلود گزارش")
-with cols[2]:
-    btn_pivot = st.button("گزارش خلاصه")
+
+btn_states = {}
+
+st.markdown(
+    """
+    <div class="row-buttons">
+        <div>{btn1}</div>
+        <div>{btn2}</div>
+        <div>{btn3}</div>
+    </div>
+    """.format(
+        btn1=st.button("مشاهده خلاصه", key="btn_show_summary"),
+        btn2=st.button("دانلود گزارش", key="btn_download_report"),
+        btn3=st.button("گزارش خلاصه", key="btn_pivot")
+    ),
+    unsafe_allow_html=True,
+)
+
+# توجه: اگر بالا فقط اولین دکمه عمل کند، به شکل زیر از سه دکمه ساده با layout جدید استفاده کن:
+# btn_show_summary = st.button("مشاهده خلاصه", key="btn_show_summary")
+# btn_download_report = st.button("دانلود گزارش", key="btn_download_report")
+# btn_pivot = st.button("گزارش خلاصه", key="btn_pivot")
+
+btn_show_summary = st.session_state.get("btn_show_summary", False)
+btn_download_report = st.session_state.get("btn_download_report", False)
+btn_pivot = st.session_state.get("btn_pivot", False)
 
 if not selected_creators:
     st.warning("لطفا حداقل یک Creator وارد کنید. این فیلتر ضروری است.")
