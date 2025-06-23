@@ -78,7 +78,6 @@ def export_df_to_pdf(df, filename, add_total=False):
 
 st.title("📊 پنل گزارشات فارس‌روت")
 
-# فقط ورودی متنی برای Creator، بدون هیچ لیست یا پیشنهاد!
 creators_input = st.text_area(
     "لطفا یوزر های که میخواهید گزارش آنرا ببینید را وارد کنید",
     placeholder="مثال: Ali, Zahra, Mohsen"
@@ -87,7 +86,6 @@ selected_creators = []
 if creators_input.strip():
     selected_creators = [c.strip() for c in creators_input.replace('\n', ',').split(',') if c.strip()]
 
-# فیلتر عددی
 with st.expander("شماره مسلسل سرویس ها را وارد کنید"):
     numeric_option = st.selectbox("نوع شرط", ["بدون فیلتر", "=", ">=", "<=", "بین (BETWEEN)"])
     if numeric_option == "بین (BETWEEN)":
@@ -105,7 +103,6 @@ with st.expander("شماره مسلسل سرویس ها را وارد کنید")
     else:
         numeric_sql, numeric_params = None, []
 
-# فیلتر تاریخ
 with st.expander("تاریخ را انتخاب  کنید"):
     date_option = st.selectbox("نوع فیلتر تاریخ", ["بدون فیلتر", "تاریخ خاص (=)", "بین دو تاریخ (BETWEEN)"])
     if date_option == "تاریخ خاص (=)":
@@ -123,7 +120,47 @@ with st.expander("تاریخ را انتخاب  کنید"):
     else:
         date_sql, date_params = None, []
 
-if st.button("دانلود گزارش"):
+# سه دکمه کنار هم
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    btn_show_summary = st.button("مشاهده خلاصه")
+with col2:
+    btn_download_report = st.button("دانلود گزارش")
+with col3:
+    btn_pivot = st.button("گزارش خلاصه")
+
+# دکمه مشاهده خلاصه
+if btn_show_summary:
+    conditions, params = [], []
+    if selected_creators:
+        conditions.append("Creator IN UNNEST(@creator_list)")
+        params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
+    if numeric_sql:
+        conditions.append(numeric_sql)
+        params += numeric_params
+    if date_sql:
+        conditions.append(date_sql)
+        params += date_params
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    query = f"SELECT * FROM {table_path} {where_clause}"
+
+    try:
+        results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
+        rows = [dict(row) for row in results]
+        if rows:
+            df = pd.DataFrame(rows)
+            total_package = df['Package'].astype(float).sum() if 'Package' in df.columns else 0
+            count_usv = df['UserServiceId'].count() if 'UserServiceId' in df.columns else 0
+            st.success(f"**مجموع فروش:** {total_package:,.2f}")
+            st.success(f"**تعداد بسته‌ها:** {count_usv}")
+        else:
+            st.warning("داده‌ای یافت نشد.")
+    except Exception as e:
+        st.error(f"خطا در مشاهده خلاصه: {e}")
+
+# دکمه دانلود گزارش
+if btn_download_report:
     conditions, params = [], []
     if selected_creators:
         conditions.append("Creator IN UNNEST(@creator_list)")
@@ -146,13 +183,6 @@ if st.button("دانلود گزارش"):
                 df = df.sort_values(by='UserServiceId', ascending=True)
             st.write("جدول نتایج:", df)
 
-            # --- نمایش مجموع فروش و تعداد بسته‌ها فقط در صفحه ---
-            total_package = df['Package'].astype(float).sum() if 'Package' in df.columns else 0
-            count_usv = df['UserServiceId'].count() if 'UserServiceId' in df.columns else 0
-
-            st.info(f"**مجموع فروش:** {total_package:,.2f}")
-            st.info(f"**تعداد بسته‌ها:** {count_usv}")
-
             export_df_to_pdf(df, "output.pdf")
             with open("output.pdf", "rb") as pdf_file:
                 st.download_button(
@@ -166,8 +196,8 @@ if st.button("دانلود گزارش"):
     except Exception as e:
         st.error(f"خطا در دانلود گزارش: {e}")
 
-# ---------- Pivot Table ---------------------
-if st.button("گزارش خلاصه"):
+# دکمه گزارش خلاصه (Pivot Table)
+if btn_pivot:
     conditions, params = [], []
     if selected_creators:
         conditions.append("Creator IN UNNEST(@creator_list)")
