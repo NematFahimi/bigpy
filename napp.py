@@ -4,6 +4,13 @@ import pandas as pd
 from datetime import datetime
 from fpdf import FPDF
 
+# تابع کمکی برای حذف کاراکترهای غیرلاتین
+def safe_text(text):
+    try:
+        return str(text).encode('latin-1', 'ignore').decode('latin-1')
+    except Exception:
+        return ''
+
 # خواندن اطلاعات کلید از secrets
 credentials_info = dict(st.secrets["gcp_service_account"])
 client = bigquery.Client.from_service_account_info(credentials_info)
@@ -31,7 +38,8 @@ def export_df_to_pdf(df, filename):
             except:
                 self.set_font("helvetica", size=8)
             for i, col in enumerate(df.columns):
-                self.cell(self.col_widths[i], 6.35, str(col), border=1, align='C', fill=True)
+                pdf_text = safe_text(col)
+                self.cell(self.col_widths[i], 6.35, pdf_text, border=1, align='C', fill=True)
             self.ln(6.35)
 
     if df.empty:
@@ -47,8 +55,8 @@ def export_df_to_pdf(df, filename):
         pdf_tmp.set_font("helvetica", size=8)
     max_lens = []
     for col in df.columns:
-        col_len = pdf_tmp.get_string_width(str(col)) + 2
-        max_val = max([pdf_tmp.get_string_width(str(val)) for val in df[col].astype(str)] + [col_len])
+        col_len = pdf_tmp.get_string_width(safe_text(col)) + 2
+        max_val = max([pdf_tmp.get_string_width(safe_text(val)) for val in df[col].astype(str)] + [col_len])
         max_lens.append(max_val)
     total_width = sum(max_lens)
     col_widths = [w * usable_width / total_width for w in max_lens]
@@ -72,7 +80,7 @@ def export_df_to_pdf(df, filename):
         else:
             pdf.set_fill_color(255, 255, 255)
         for i, col in enumerate(df.columns):
-            text = str(row[col]) if row[col] is not None else ""
+            text = safe_text(row[col]) if row[col] is not None else ""
             pdf.cell(pdf.col_widths[i], line_height, text, border=1, align='L', fill=fill)
         pdf.ln(line_height)
         fill = not fill
@@ -85,7 +93,6 @@ def export_df_to_pdf(df, filename):
         pdf.set_font("helvetica", size=8)
 
     sum_row = []
-    # اگر نام ستون دقیقاً 'package' و 'UserServiceId' باشد:
     package_sum = df['package'].astype(float).sum() if 'package' in df.columns else ''
     usid_count = df['UserServiceId'].count() if 'UserServiceId' in df.columns else ''
     first = True
@@ -95,7 +102,7 @@ def export_df_to_pdf(df, filename):
         elif col == 'UserServiceId':
             sum_row.append(str(usid_count))
         elif first:
-            sum_row.append('مجموع')
+            sum_row.append(safe_text('مجموع'))
             first = False
         else:
             sum_row.append('')
