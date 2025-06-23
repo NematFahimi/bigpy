@@ -75,37 +75,6 @@ def export_df_to_pdf(df, filename, add_total=False):
             pdf.cell(pdf.col_widths[i], line_height, text, border=1, align='L', fill=fill)
         pdf.ln(line_height)
         fill = not fill
-
-    # -------- افزودن سطر مجموع در انتهای جدول ---------
-    if add_total:
-        pdf.set_fill_color(200, 220, 255)
-        try:
-            pdf.set_font("Arial", size=8)
-        except:
-            pdf.set_font("helvetica", size=8)
-        total_row = []
-        sum_cols = []
-        count_cols = []
-        for col in df.columns:
-            if "sum" in col.lower():
-                sum_cols.append(col)
-            elif "count" in col.lower():
-                count_cols.append(col)
-        first = True
-        for col in df.columns:
-            if first:
-                total_row.append(safe_text('Total'))
-                first = False
-            elif col in sum_cols:
-                total_row.append(str(df[col].sum()))
-            elif col in count_cols:
-                total_row.append(str(df[col].sum()))
-            else:
-                total_row.append('')
-        for i, text in enumerate(total_row):
-            pdf.cell(pdf.col_widths[i], line_height, text, border=1, align='C', fill=True)
-        pdf.ln(line_height)
-    # -------- پایان سطر مجموع ---------
     pdf.output(filename)
 
 st.title("📊 گزارش BigQuery")
@@ -214,8 +183,8 @@ if st.button("گزارش خلاصه (Pivot Table)"):
         pivot_rows = [dict(row) for row in results]
         if pivot_rows:
             pivot_df = pd.DataFrame(pivot_rows)
-            # سورت بر اساس UserServiceId_count
-            pivot_df = pivot_df.sort_values(by='UserServiceId_count', ascending=True)
+            # سورت بر اساس Creator سپس ServiceName سپس UserServiceId_count
+            pivot_df = pivot_df.sort_values(by=['Creator', 'ServiceName', 'UserServiceId_count'], ascending=[True, True, True])
             # اضافه کردن ردیف مجموع
             total_dict = {
                 'Creator': 'Total',
@@ -223,7 +192,6 @@ if st.button("گزارش خلاصه (Pivot Table)"):
                 'UserServiceId_count': pivot_df['UserServiceId_count'].sum(),
                 'Package_sum': pivot_df['Package_sum'].sum()
             }
-            # اگر ستون اضافی در جدول هست خالی بگذار
             for col in pivot_df.columns:
                 if col not in total_dict:
                     total_dict[col] = ''
@@ -247,4 +215,3 @@ if st.button("گزارش خلاصه (Pivot Table)"):
             st.warning("داده‌ای برای خلاصه یافت نشد.")
     except Exception as e:
         st.error(f"خطا در Pivot Table: {e}")
-        
