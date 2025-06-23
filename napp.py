@@ -139,7 +139,7 @@ with cols[2]:
     btn_pivot = st.button("گزارش خلاصه")
 
 if not selected_creators:
-    st.warning("لطفا حداقل یک Creator وارد کنید. این فیلتر ضروری است.")
+    st.warning("وارد کردن یوزر ضروری است")
 else:
     if btn_show_summary:
         conditions, params = [], []
