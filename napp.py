@@ -14,14 +14,6 @@ credentials_info = dict(st.secrets["gcp_service_account"])
 client = bigquery.Client.from_service_account_info(credentials_info)
 table_path = "frsphotspots.HSP.hspdata"
 
-def get_unique_creators():
-    query = f"SELECT DISTINCT Creator FROM {table_path} ORDER BY Creator"
-    try:
-        return [row.Creator for row in client.query(query).result() if row.Creator]
-    except Exception as e:
-        st.error(f"خطا در دریافت Creatorها: {e}")
-        return []
-
 def export_df_to_pdf(df, filename, add_total=False):
     class PDF(FPDF):
         def __init__(self, col_widths, *args, **kwargs):
@@ -86,7 +78,7 @@ def export_df_to_pdf(df, filename, add_total=False):
 
 st.title("📊 گزارش BigQuery")
 
-# تغییر این بخش: ورود Creator به صورت متنی
+# فقط ورودی متنی برای Creator، بدون هیچ لیست یا پیشنهاد!
 creators_input = st.text_area(
     "لیست Creator را وارد کنید (هر کدام را با ویرگول یا اینتر جدا کنید):",
     placeholder="مثال: Ali, Zahra, Mohsen"
