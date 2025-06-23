@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import jdatetime
 import io
+import datetime
 
 st.set_page_config(page_title="Service Report Processor", layout="centered")
 st.title("کار رو به کاردان بسپار")
@@ -45,25 +46,26 @@ if uploaded_file is not None:
             # فقط بخش تاریخ را نگه‌دار
             df['CDT'] = df['CDT'].astype(str).str.split().str[0]
 
-            # تبدیل شمسی به میلادی و فرمت‌دهی تاریخ خروجی
+            # تابع تبدیل تاریخ با پشتیبانی از همه حالت‌ها
             def to_gregorian_if_jalali(date_str):
                 try:
                     if not isinstance(date_str, str):
                         return date_str
-                    # اگر تاریخ شمسی است (14xx/...)
+                    # اگر تاریخ شمسی است (۱۴xx)
                     if date_str.startswith('14'):
                         parts = date_str.replace('-', '/').split('/')
                         if len(parts) == 3:
                             jy, jm, jd = map(int, parts)
                             gdate = jdatetime.date(jy, jm, jd).togregorian()
                             return gdate.strftime('%Y-%m-%d')
-                    # اگر تاریخ میلادی است (20xx/...)
+                    # اگر تاریخ میلادی است (۲۰xx)
                     elif date_str.startswith('20'):
+                        # همه جداکننده‌ها را به / تبدیل کن
                         parts = date_str.replace('-', '/').split('/')
                         if len(parts) == 3:
                             gy, gm, gd = map(int, parts)
-                            return f"{gy:04d}-{gm:02d}-{gd:02d}"
-                    # سایر موارد دست نخورده برگردد
+                            return datetime.date(gy, gm, gd).strftime('%Y-%m-%d')
+                    # سایر موارد
                     return date_str
                 except Exception:
                     return date_str
