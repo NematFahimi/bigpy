@@ -104,12 +104,12 @@ with st.expander("شماره مسلسل سرویس ها را وارد کنید")
         numeric_sql, numeric_params = None, []
 
 with st.expander("تاریخ را انتخاب  کنید"):
-    date_option = st.selectbox("نوع فیلتر تاریخ", ["بدون فیلتر", "تاریخ خاص (=)", "بین دو تاریخ (BETWEEN)"])
+    date_option = st.selectbox("نوع فیلتر تاریخ", ["بدون فیلتر", "تاریخ خاص (=)", "تاریخ سفارشی"])
     if date_option == "تاریخ خاص (=)":
         date_value = st.date_input("تاریخ")
         date_sql = "CreatDate = @dt1"
         date_params = [bigquery.ScalarQueryParameter("dt1", "DATE", date_value)]
-    elif date_option == "بین دو تاریخ (BETWEEN)":
+    elif date_option == "تاریخ سفارشی":
         date_start = st.date_input("تاریخ شروع")
         date_end = st.date_input("تاریخ پایان")
         date_sql = "CreatDate BETWEEN @dt1 AND @dt2"
