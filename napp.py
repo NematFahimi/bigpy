@@ -71,7 +71,6 @@ def export_df_to_pdf(df, filename, add_total=False):
             (str(row[0]).strip().endswith("Total")) or
             (str(row[0]).strip().lower() == "grand total")
         )
-        # رنگ ردیف‌های مجموع ۱۰٪ تیره‌تر
         if is_total_row:
             pdf.set_fill_color(200, 210, 210)  # حدود ۱۰٪ تیره‌تر از ردیف معمولی
         elif fill:
@@ -87,8 +86,14 @@ def export_df_to_pdf(df, filename, add_total=False):
 
 st.title("📊 گزارش BigQuery")
 
-creators = get_unique_creators()
-selected_creators = st.multiselect("انتخاب Creator", creators)
+# تغییر این بخش: ورود Creator به صورت متنی
+creators_input = st.text_area(
+    "لیست Creator را وارد کنید (هر کدام را با ویرگول یا اینتر جدا کنید):",
+    placeholder="مثال: Ali, Zahra, Mohsen"
+)
+selected_creators = []
+if creators_input.strip():
+    selected_creators = [c.strip() for c in creators_input.replace('\n', ',').split(',') if c.strip()]
 
 # فیلتر عددی
 with st.expander("فیلتر عددی (UserServiceId)"):
