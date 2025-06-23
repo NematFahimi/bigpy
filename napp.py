@@ -120,28 +120,17 @@ with st.expander("تاریخ را انتخاب  کنید"):
     else:
         date_sql, date_params = None, []
 
-# فاصله بین دکمه‌ها دقیقاً ۳ میلی‌متر (تقریباً معادل 9px)
-st.markdown("""
-    <style>
-    .element-container:has(.stButton) {
-        margin-bottom: 0px !important;
-    }
-    div[data-testid="column"] {
-        padding-left: 4.5px !important;
-        padding-right: 4.5px !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# سه دکمه کنار هم
+col1, col2, col3 = st.columns(3)
 
-cols = st.columns([1, 1, 1])
-
-with cols[0]:
+with col1:
     btn_show_summary = st.button("مشاهده خلاصه")
-with cols[1]:
+with col2:
     btn_download_report = st.button("دانلود گزارش")
-with cols[2]:
+with col3:
     btn_pivot = st.button("گزارش خلاصه")
 
+# دکمه مشاهده خلاصه
 if btn_show_summary:
     conditions, params = [], []
     if selected_creators:
@@ -170,6 +159,7 @@ if btn_show_summary:
     except Exception as e:
         st.error(f"خطا در مشاهده خلاصه: {e}")
 
+# دکمه دانلود گزارش
 if btn_download_report:
     conditions, params = [], []
     if selected_creators:
@@ -206,6 +196,7 @@ if btn_download_report:
     except Exception as e:
         st.error(f"خطا در دانلود گزارش: {e}")
 
+# دکمه گزارش خلاصه (Pivot Table)
 if btn_pivot:
     conditions, params = [], []
     if selected_creators:
