@@ -76,7 +76,7 @@ def export_df_to_pdf(df, filename, add_total=False):
         fill = not fill
     pdf.output(filename)
 
-st.title("📊 پنل گزارشات مشترکین")
+st.title("📊 پنل گزارشات فارس‌روت")
 
 # فقط ورودی متنی برای Creator، بدون هیچ لیست یا پیشنهاد!
 creators_input = st.text_area(
