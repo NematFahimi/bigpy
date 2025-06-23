@@ -120,167 +120,175 @@ with st.expander("تاریخ را انتخاب  کنید"):
     else:
         date_sql, date_params = None, []
 
-# سه دکمه کنار هم
-col1, col2, col3 = st.columns(3)
-
-with col1:
+# فاصله بین دکمه‌ها دقیقاً ۳ میلی‌متر (تقریباً معادل 9px)
+st.markdown("""
+<style>
+div[data-testid="column"] {
+    width: 33.33% !important;
+    padding-left: 1.5mm !important;
+    padding-right: 1.5mm !important;
+}
+</style>
+""", unsafe_allow_html=True)
+cols = st.columns([1,1,1])
+with cols[0]:
     btn_show_summary = st.button("مشاهده خلاصه")
-with col2:
+with cols[1]:
     btn_download_report = st.button("دانلود گزارش")
-with col3:
+with cols[2]:
     btn_pivot = st.button("گزارش خلاصه")
 
-# دکمه مشاهده خلاصه
-if btn_show_summary:
-    conditions, params = [], []
-    if selected_creators:
-        conditions.append("Creator IN UNNEST(@creator_list)")
-        params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
-    if numeric_sql:
-        conditions.append(numeric_sql)
-        params += numeric_params
-    if date_sql:
-        conditions.append(date_sql)
-        params += date_params
-    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    query = f"SELECT * FROM {table_path} {where_clause}"
+if not selected_creators:
+    st.warning("لطفا حداقل یک Creator وارد کنید. این فیلتر ضروری است.")
+else:
+    if btn_show_summary:
+        conditions, params = [], []
+        if selected_creators:
+            conditions.append("Creator IN UNNEST(@creator_list)")
+            params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
+        if numeric_sql:
+            conditions.append(numeric_sql)
+            params += numeric_params
+        if date_sql:
+            conditions.append(date_sql)
+            params += date_params
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        query = f"SELECT * FROM {table_path} {where_clause}"
 
-    try:
-        results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
-        rows = [dict(row) for row in results]
-        if rows:
-            df = pd.DataFrame(rows)
-            total_package = df['Package'].astype(float).sum() if 'Package' in df.columns else 0
-            count_usv = df['UserServiceId'].count() if 'UserServiceId' in df.columns else 0
-            st.success(f"**مجموع فروش:** {total_package:,.2f}")
-            st.success(f"**تعداد بسته‌ها:** {count_usv}")
-        else:
-            st.warning("داده‌ای یافت نشد.")
-    except Exception as e:
-        st.error(f"خطا در مشاهده خلاصه: {e}")
+        try:
+            results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
+            rows = [dict(row) for row in results]
+            if rows:
+                df = pd.DataFrame(rows)
+                total_package = df['Package'].astype(float).sum() if 'Package' in df.columns else 0
+                count_usv = df['UserServiceId'].count() if 'UserServiceId' in df.columns else 0
+                st.success(f"**مجموع فروش:** {total_package:,.2f}")
+                st.success(f"**تعداد بسته‌ها:** {count_usv}")
+            else:
+                st.warning("داده‌ای یافت نشد.")
+        except Exception as e:
+            st.error(f"خطا در مشاهده خلاصه: {e}")
 
-# دکمه دانلود گزارش
-if btn_download_report:
-    conditions, params = [], []
-    if selected_creators:
-        conditions.append("Creator IN UNNEST(@creator_list)")
-        params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
-    if numeric_sql:
-        conditions.append(numeric_sql)
-        params += numeric_params
-    if date_sql:
-        conditions.append(date_sql)
-        params += date_params
-    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    query = f"SELECT * FROM {table_path} {where_clause}"
+    if btn_download_report:
+        conditions, params = [], []
+        if selected_creators:
+            conditions.append("Creator IN UNNEST(@creator_list)")
+            params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
+        if numeric_sql:
+            conditions.append(numeric_sql)
+            params += numeric_params
+        if date_sql:
+            conditions.append(date_sql)
+            params += date_params
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        query = f"SELECT * FROM {table_path} {where_clause}"
 
-    try:
-        results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
-        rows = [dict(row) for row in results]
-        if rows:
-            df = pd.DataFrame(rows)
-            if 'UserServiceId' in df.columns:
-                df = df.sort_values(by='UserServiceId', ascending=True)
-            st.write("جدول نتایج:", df)
+        try:
+            results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
+            rows = [dict(row) for row in results]
+            if rows:
+                df = pd.DataFrame(rows)
+                if 'UserServiceId' in df.columns:
+                    df = df.sort_values(by='UserServiceId', ascending=True)
+                st.write("جدول نتایج:", df)
 
-            export_df_to_pdf(df, "output.pdf")
-            with open("output.pdf", "rb") as pdf_file:
-                st.download_button(
-                    label="📥 دانلود PDF",
-                    data=pdf_file,
-                    file_name="output.pdf",
-                    mime="application/pdf"
-                )
-        else:
-            st.warning("نتیجه‌ای یافت نشد.")
-    except Exception as e:
-        st.error(f"خطا در دانلود گزارش: {e}")
+                export_df_to_pdf(df, "output.pdf")
+                with open("output.pdf", "rb") as pdf_file:
+                    st.download_button(
+                        label="📥 دانلود PDF",
+                        data=pdf_file,
+                        file_name="output.pdf",
+                        mime="application/pdf"
+                    )
+            else:
+                st.warning("نتیجه‌ای یافت نشد.")
+        except Exception as e:
+            st.error(f"خطا در دانلود گزارش: {e}")
 
-# دکمه گزارش خلاصه (Pivot Table)
-if btn_pivot:
-    conditions, params = [], []
-    if selected_creators:
-        conditions.append("Creator IN UNNEST(@creator_list)")
-        params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
-    if numeric_sql:
-        conditions.append(numeric_sql)
-        params += numeric_params
-    if date_sql:
-        conditions.append(date_sql)
-        params += date_params
-    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    pivot_query = f"""
-    SELECT
-      Creator,
-      ServiceName,
-      COUNT(UserServiceId) AS UserServiceId_count,
-      SUM(CAST(Package AS FLOAT64)) AS Package_sum
-    FROM {table_path}
-    {where_clause}
-    GROUP BY Creator, ServiceName
-    ORDER BY Creator, ServiceName
-    """
-    try:
-        results = client.query(pivot_query, bigquery.QueryJobConfig(query_parameters=params)).result()
-        pivot_rows = [dict(row) for row in results]
-        if pivot_rows:
-            pivot_df = pd.DataFrame(pivot_rows)
-            pivot_df = pivot_df.sort_values(by=['Creator', 'ServiceName', 'UserServiceId_count'], ascending=[True, True, True])
-            
-            if len(selected_creators) >= 2:
-                rows_with_totals = []
-                for creator, group in pivot_df.groupby('Creator', sort=False):
-                    rows_with_totals.extend(group.to_dict('records'))
-                    total_row = {
-                        'Creator': f"{creator} - Total",
+    if btn_pivot:
+        conditions, params = [], []
+        if selected_creators:
+            conditions.append("Creator IN UNNEST(@creator_list)")
+            params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
+        if numeric_sql:
+            conditions.append(numeric_sql)
+            params += numeric_params
+        if date_sql:
+            conditions.append(date_sql)
+            params += date_params
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        pivot_query = f"""
+        SELECT
+          Creator,
+          ServiceName,
+          COUNT(UserServiceId) AS UserServiceId_count,
+          SUM(CAST(Package AS FLOAT64)) AS Package_sum
+        FROM {table_path}
+        {where_clause}
+        GROUP BY Creator, ServiceName
+        ORDER BY Creator, ServiceName
+        """
+        try:
+            results = client.query(pivot_query, bigquery.QueryJobConfig(query_parameters=params)).result()
+            pivot_rows = [dict(row) for row in results]
+            if pivot_rows:
+                pivot_df = pd.DataFrame(pivot_rows)
+                pivot_df = pivot_df.sort_values(by=['Creator', 'ServiceName', 'UserServiceId_count'], ascending=[True, True, True])
+                
+                if len(selected_creators) >= 2:
+                    rows_with_totals = []
+                    for creator, group in pivot_df.groupby('Creator', sort=False):
+                        rows_with_totals.extend(group.to_dict('records'))
+                        total_row = {
+                            'Creator': f"{creator} - Total",
+                            'ServiceName': '',
+                            'UserServiceId_count': group['UserServiceId_count'].sum(),
+                            'Package_sum': group['Package_sum'].sum()
+                        }
+                        for col in pivot_df.columns:
+                            if col not in total_row:
+                                total_row[col] = ''
+                        rows_with_totals.append(total_row)
+                    grand_total = {
+                        'Creator': 'Grand Total',
                         'ServiceName': '',
-                        'UserServiceId_count': group['UserServiceId_count'].sum(),
-                        'Package_sum': group['Package_sum'].sum()
+                        'UserServiceId_count': pivot_df['UserServiceId_count'].sum(),
+                        'Package_sum': pivot_df['Package_sum'].sum()
                     }
                     for col in pivot_df.columns:
-                        if col not in total_row:
-                            total_row[col] = ''
-                    rows_with_totals.append(total_row)
-                grand_total = {
-                    'Creator': 'Grand Total',
-                    'ServiceName': '',
-                    'UserServiceId_count': pivot_df['UserServiceId_count'].sum(),
-                    'Package_sum': pivot_df['Package_sum'].sum()
-                }
-                for col in pivot_df.columns:
-                    if col not in grand_total:
-                        grand_total[col] = ''
-                rows_with_totals.append(grand_total)
-                final_pivot_df = pd.DataFrame(rows_with_totals)
-            else:
-                final_pivot_df = pivot_df.copy()
-                grand_total = {
-                    'Creator': 'Grand Total',
-                    'ServiceName': '',
-                    'UserServiceId_count': final_pivot_df['UserServiceId_count'].sum(),
-                    'Package_sum': final_pivot_df['Package_sum'].sum()
-                }
-                for col in final_pivot_df.columns:
-                    if col not in grand_total:
-                        grand_total[col] = ''
-                final_pivot_df = pd.concat([final_pivot_df, pd.DataFrame([grand_total])], ignore_index=True)
+                        if col not in grand_total:
+                            grand_total[col] = ''
+                    rows_with_totals.append(grand_total)
+                    final_pivot_df = pd.DataFrame(rows_with_totals)
+                else:
+                    final_pivot_df = pivot_df.copy()
+                    grand_total = {
+                        'Creator': 'Grand Total',
+                        'ServiceName': '',
+                        'UserServiceId_count': final_pivot_df['UserServiceId_count'].sum(),
+                        'Package_sum': final_pivot_df['Package_sum'].sum()
+                    }
+                    for col in final_pivot_df.columns:
+                        if col not in grand_total:
+                            grand_total[col] = ''
+                    final_pivot_df = pd.concat([final_pivot_df, pd.DataFrame([grand_total])], ignore_index=True)
 
-            st.write("خلاصه (Pivot Table):", final_pivot_df)
-            st.download_button(
-                label="📥دانلود فایل CSV",
-                data=final_pivot_df.to_csv(index=False).encode('utf-8'),
-                file_name="pivot_summary.csv",
-                mime="text/csv"
-            )
-            export_df_to_pdf(final_pivot_df, "pivot_summary.pdf", add_total=False)
-            with open("pivot_summary.pdf", "rb") as pdf_file:
+                st.write("خلاصه (Pivot Table):", final_pivot_df)
                 st.download_button(
-                    label="📥دانلود فایل PDF",
-                    data=pdf_file,
-                    file_name="pivot_summary.pdf",
-                    mime="application/pdf"
+                    label="📥دانلود فایل CSV",
+                    data=final_pivot_df.to_csv(index=False).encode('utf-8'),
+                    file_name="pivot_summary.csv",
+                    mime="text/csv"
                 )
-        else:
-            st.warning("داده‌ای برای خلاصه یافت نشد.")
-    except Exception as e:
-        st.error(f"خطا در Pivot Table: {e}")
+                export_df_to_pdf(final_pivot_df, "pivot_summary.pdf", add_total=False)
+                with open("pivot_summary.pdf", "rb") as pdf_file:
+                    st.download_button(
+                        label="📥دانلود فایل PDF",
+                        data=pdf_file,
+                        file_name="pivot_summary.pdf",
+                        mime="application/pdf"
+                    )
+            else:
+                st.warning("داده‌ای برای خلاصه یافت نشد.")
+        except Exception as e:
+            st.error(f"خطا در Pivot Table: {e}")
