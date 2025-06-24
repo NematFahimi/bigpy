@@ -42,6 +42,9 @@ if uploaded_file is not None:
         ]
         df_clean.columns = new_columns[:len(df_clean.columns)]
 
+        # قبل از اجرای تابع تاریخ، فقط بخش تاریخ را نگه می‌داریم (سمت چپ فاصله)
+        df_clean['CreatDate'] = df_clean['CreatDate'].astype(str).str.split().str[0]
+
         # تابع تبدیل تاریخ به میلادی با پشتیبانی همه حالت‌ها
         def to_gregorian_if_jalali(date_str):
             try:
@@ -53,19 +56,4 @@ if uploaded_file is not None:
                     if len(parts) == 3:
                         jy, jm, jd = map(int, parts)
                         gdate = jdatetime.date(jy, jm, jd).togregorian()
-                        return gdate.strftime('%Y-%m-%d')
-                # اگر تاریخ میلادی است (۲۰xx)
-                elif date_str.startswith('20'):
-                    parts = date_str.replace('-', '/').split('/')
-                    if len(parts) == 3:
-                        gy, gm, gd = map(int, parts)
-                        return datetime.date(gy, gm, gd).strftime('%Y-%m-%d')
-                return date_str
-            except Exception:
-                return date_str
-
-        # اعمال تابع روی ستون CreatDate
-        df_clean['CreatDate'] = df_clean['CreatDate'].apply(to_gregorian_if_jalali)
-
-        st.success("✅ پاکسازی و تبدیل تاریخ انجام شد! ۱۰ سطر اول:")
-        st.dataframe(df_clean.head(10))
+                        return gdate.strftime('%Y-%m-%
