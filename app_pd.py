@@ -4,7 +4,7 @@ import jdatetime
 import io
 import datetime
 from google.cloud import bigquery
-import traceback  # افزودن برای نمایش ارور کامل
+import traceback
 
 # گرفتن کلید از سکریت (فرمت TOML)
 credentials_info = dict(st.secrets["gcp_service_account"])
@@ -19,9 +19,8 @@ table_names = [
     "hspdata_02",
     "hspdata_ghor",
     "hspdata_ac",
-    "test"  # جدول تست اضافه شد
+    "test"
 ]
-
 selected_table_name = st.selectbox("نام جدول را انتخاب کنید", table_names)
 
 if selected_table_name:
@@ -44,94 +43,100 @@ if selected_table_name:
     )
     ronumber = max_usv
 
-    # -- بخش ۲: آپلود فایل و پردازش فقط بعد از انتخاب جدول --
     uploaded_file = st.file_uploader("فایل CSV خود را آپلود کنید", type=["csv"])
 
+    # --- وضعیت مرحله پردازش/ارسال را مدیریت کن ---
+    if 'processed_df' not in st.session_state:
+        st.session_state.processed_df = None
+    if 'show_upload_btn' not in st.session_state:
+        st.session_state.show_upload_btn = False
+    if 'upload_result' not in st.session_state:
+        st.session_state.upload_result = None
+
     if uploaded_file is not None:
-        # خواندن فایل
         df = pd.read_csv(uploaded_file)
         st.write("پیش‌نمایش داده‌های خام:")
         st.dataframe(df.head())
 
-        # گرفتن رونمبر از کاربر (بررسی نوع داده)
         try:
             df['UserServiceId'] = pd.to_numeric(df['UserServiceId'], errors='coerce')
         except Exception:
             st.error("مشکل در تبدیل ستون UserServiceId به عدد. لطفا فایل را بررسی کنید.")
 
         if st.button("پردازش داده"):
-            # حذف ستون‌ها
             columns_to_drop = [
                 'PayPlan', 'DirectOff', 'VAT', 'PayPrice', 'Off', 'SavingOff',
                 'CancelDT', 'ReturnPrice', 'InstallmentNo', 'InstallmentPeriod',
                 'InstallmentFirstCash', 'ServiceIsDel'
             ]
             df = df.drop(columns=columns_to_drop, errors='ignore')
-
-            # حذف سطرها براساس رونمبر
             df = df[df['UserServiceId'] > ronumber].reset_index(drop=True)
             df['SavingOffUsed'] = None
             df['ServicePrice'] = None
 
-            # انتقال CDT به ابتدای جدول
             cols = list(df.columns)
             if 'CDT' in cols:
                 cols.insert(0, cols.pop(cols.index('CDT')))
                 df = df[cols]
-
-                # فقط بخش تاریخ را نگه‌دار
                 df['CDT'] = df['CDT'].astype(str).str.split().str[0]
-
-                # تابع تبدیل تاریخ با پشتیبانی از همه حالت‌ها
                 def to_gregorian_if_jalali(date_str):
                     try:
                         if not isinstance(date_str, str):
                             return date_str
-                        # اگر تاریخ شمسی است (۱۴xx)
                         if date_str.startswith('14'):
                             parts = date_str.replace('-', '/').split('/')
                             if len(parts) == 3:
                                 jy, jm, jd = map(int, parts)
                                 gdate = jdatetime.date(jy, jm, jd).togregorian()
                                 return gdate.strftime('%Y-%m-%d')
-                        # اگر تاریخ میلادی است (۲۰xx)
                         elif date_str.startswith('20'):
-                            # همه جداکننده‌ها را به / تبدیل کن
                             parts = date_str.replace('-', '/').split('/')
                             if len(parts) == 3:
                                 gy, gm, gd = map(int, parts)
                                 return datetime.date(gy, gm, gd).strftime('%Y-%m-%d')
-                        # سایر موارد
                         return date_str
                     except Exception:
                         return date_str
-
                 df['CDT'] = df['CDT'].apply(to_gregorian_if_jalali)
 
             st.success("پردازش انجام شد. داده نهایی:")
             st.dataframe(df.head())
+            st.session_state.processed_df = df
+            st.session_state.show_upload_btn = True
+            st.session_state.upload_result = None
 
-            # --- بخش جدید: ارسال به بیگ‌کوئری ---
-            if st.button("ارسال به بیگ‌کوئری"):
-                try:
-                    job_config = bigquery.LoadJobConfig(
-                        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-                        skip_leading_rows=0,
-                        source_format=bigquery.SourceFormat.CSV,
-                        autodetect=True
-                    )
-                    # ارسال داده
-                    job = client.load_table_from_dataframe(df, table_path, job_config=job_config)
-                    job.result()  # منتظر بماند تا آپلود کامل شود
+    # فقط وقتی پردازش انجام شده دکمه ارسال به بیگ‌کوئری را نشان بده
+    if st.session_state.show_upload_btn and st.session_state.processed_df is not None:
+        if st.button("ارسال به بیگ‌کوئری"):
+            try:
+                job_config = bigquery.LoadJobConfig(
+                    write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+                    skip_leading_rows=0,
+                    source_format=bigquery.SourceFormat.CSV,
+                    autodetect=True
+                )
+                job = client.load_table_from_dataframe(st.session_state.processed_df, table_path, job_config=job_config)
+                job.result()
 
-                    added_count = len(df)
-                    st.success(f"✅ داده‌ها با موفقیت به جدول انتخاب شده بیگ‌کوئری اضافه شدند.\n\n"
-                               f"تعداد ردیف افزوده شده: {added_count}")
+                added_count = len(st.session_state.processed_df)
+                st.session_state.upload_result = ("success", added_count)
+                st.session_state.show_upload_btn = False
+            except Exception as e:
+                st.session_state.upload_result = ("error", f"{e}\n{traceback.format_exc()}")
+                st.session_state.show_upload_btn = False
 
-                    # دکمه بازگشت به خانه
-                    if st.button("بازگشت به خانه"):
-                        st.experimental_rerun()
-
-                except Exception as e:
-                    st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری:\n{e}")
-                    st.code(traceback.format_exc(), language="python")
+    # نمایش نتیجه عملیات ارسال (موفق یا خطا)
+    if st.session_state.upload_result is not None:
+        if st.session_state.upload_result[0] == "success":
+            st.success(f"✅ داده‌ها با موفقیت به جدول انتخاب شده بیگ‌کوئری اضافه شدند.\n"
+                       f"تعداد ردیف افزوده شده: {st.session_state.upload_result[1]}")
+            if st.button("بازگشت به خانه"):
+                st.session_state.processed_df = None
+                st.session_state.upload_result = None
+                st.experimental_rerun()
+        elif st.session_state.upload_result[0] == "error":
+            st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری:\n\n{st.session_state.upload_result[1]}")
+            if st.button("بازگشت به خانه"):
+                st.session_state.processed_df = None
+                st.session_state.upload_result = None
+                st.experimental_rerun()
