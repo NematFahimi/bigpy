@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import jdatetime
-import io
 import datetime
 from google.cloud import bigquery
 
@@ -71,11 +70,20 @@ if selected_table_name:
                 df['SavingOffUsed'] = None
                 df['ServicePrice'] = None
 
-                cols = list(df.columns)
-                if 'CDT' in cols:
-                    cols.insert(0, cols.pop(cols.index('CDT')))
-                    df = df[cols]
-                    df['CDT'] = df['CDT'].astype(str).str.split().str[0]
+                # تبدیل نام ستون تاریخ به CreatDate
+                if 'CDT' in df.columns:
+                    df = df.rename(columns={'CDT': 'CreatDate'})
+
+                # اطمینان از اینکه فقط ستون‌هایی که جدول دارد باقی بماند
+                table_columns = [
+                    'CreatDate','UserServiceId','Creator','ServiceName','Username',
+                    'ServiceStatus','ServicePrice','Package','StartDate','EndDate'
+                ]
+                df = df[[col for col in table_columns if col in df.columns]]
+
+                # تبدیل تاریخ‌ها اگر لازم بود
+                if 'CreatDate' in df.columns:
+                    df['CreatDate'] = df['CreatDate'].astype(str).str.split().str[0]
                     def to_gregorian_if_jalali(date_str):
                         try:
                             if not isinstance(date_str, str):
@@ -94,22 +102,21 @@ if selected_table_name:
                             return date_str
                         except Exception:
                             return date_str
-                    df['CDT'] = df['CDT'].apply(to_gregorian_if_jalali)
+                    df['CreatDate'] = df['CreatDate'].apply(to_gregorian_if_jalali)
 
                 st.success("پردازش انجام شد. داده نهایی:")
                 st.dataframe(df.head())
 
-                # --- دکمه ارسال به بیگ‌کوئری ---
-                if st.button("ارسال به بیگ‌کوئری"):
-                    if len(df) == 0:
-                        st.warning("داده‌ای برای ارسال به جدول وجود ندارد.")
-                    else:
+                if len(df) == 0:
+                    st.warning("داده‌ای برای ارسال به جدول وجود ندارد.")
+                else:
+                    if st.button("ارسال به بیگ‌کوئری"):
                         try:
                             job_config = bigquery.LoadJobConfig(
                                 write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
                                 skip_leading_rows=0,
                                 source_format=bigquery.SourceFormat.CSV,
-                                autodetect=False  # ساختار جدول باید دقیقاً با df یکی باشد
+                                autodetect=False
                             )
                             job = client.load_table_from_dataframe(df, table_path, job_config=job_config)
                             job.result()
