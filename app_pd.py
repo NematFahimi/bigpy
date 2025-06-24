@@ -40,7 +40,7 @@ if selected_table_name:
         key="readonly_usv",
         disabled=True
     )
-    ronumber = max_usv
+    ronumber = max_usv if max_usv is not None else 0
 
     # -- بخش ۲: آپلود فایل و پردازش فقط بعد از انتخاب جدول --
     uploaded_file = st.file_uploader("فایل CSV خود را آپلود کنید", type=["csv"])
@@ -51,76 +51,87 @@ if selected_table_name:
         st.write("پیش‌نمایش داده‌های خام:")
         st.dataframe(df.head())
 
-        # گرفتن رونمبر از کاربر (بررسی نوع داده)
-        try:
-            df['UserServiceId'] = pd.to_numeric(df['UserServiceId'], errors='coerce')
-        except Exception:
-            st.error("مشکل در تبدیل ستون UserServiceId به عدد. لطفا فایل را بررسی کنید.")
+        # تلاش برای تبدیل ستون UserServiceId به عدد و حذف نال‌ها
+        if 'UserServiceId' not in df.columns:
+            st.error("ستون UserServiceId در فایل وجود ندارد!")
+        else:
+            try:
+                df['UserServiceId'] = pd.to_numeric(df['UserServiceId'], errors='coerce')
+                n_before = len(df)
+                # حذف ردیف‌هایی که UserServiceId نال یا کوچکتر یا مساوی ronumber هستند
+                df = df[df['UserServiceId'].notna()]
+                df = df[df['UserServiceId'] > ronumber].reset_index(drop=True)
+                n_after = len(df)
+                if n_after == 0:
+                    st.warning("هیچ سطر جدیدی نسبت به جدول انتخابی وجود ندارد.")
+            except Exception:
+                st.error("مشکل در تبدیل ستون UserServiceId به عدد. لطفا فایل را بررسی کنید.")
 
-        if st.button("پردازش داده"):
-            # حذف ستون‌ها
-            columns_to_drop = [
-                'PayPlan', 'DirectOff', 'VAT', 'PayPrice', 'Off', 'SavingOff',
-                'CancelDT', 'ReturnPrice', 'InstallmentNo', 'InstallmentPeriod',
-                'InstallmentFirstCash', 'ServiceIsDel'
-            ]
-            df = df.drop(columns=columns_to_drop, errors='ignore')
+            if st.button("پردازش داده"):
+                # حذف ستون‌ها
+                columns_to_drop = [
+                    'PayPlan', 'DirectOff', 'VAT', 'PayPrice', 'Off', 'SavingOff',
+                    'CancelDT', 'ReturnPrice', 'InstallmentNo', 'InstallmentPeriod',
+                    'InstallmentFirstCash', 'ServiceIsDel'
+                ]
+                df = df.drop(columns=columns_to_drop, errors='ignore')
 
-            # حذف سطرها براساس رونمبر
-            df = df[df['UserServiceId'] > ronumber].reset_index(drop=True)
-            df['SavingOffUsed'] = None
-            df['ServicePrice'] = None
+                df['SavingOffUsed'] = None
+                df['ServicePrice'] = None
 
-            # انتقال CDT به ابتدای جدول
-            cols = list(df.columns)
-            if 'CDT' in cols:
-                cols.insert(0, cols.pop(cols.index('CDT')))
-                df = df[cols]
+                # انتقال CDT به ابتدای جدول
+                cols = list(df.columns)
+                if 'CDT' in cols:
+                    cols.insert(0, cols.pop(cols.index('CDT')))
+                    df = df[cols]
 
-                # فقط بخش تاریخ را نگه‌دار
-                df['CDT'] = df['CDT'].astype(str).str.split().str[0]
+                    # فقط بخش تاریخ را نگه‌دار
+                    df['CDT'] = df['CDT'].astype(str).str.split().str[0]
 
-                # تابع تبدیل تاریخ با پشتیبانی از همه حالت‌ها
-                def to_gregorian_if_jalali(date_str):
-                    try:
-                        if not isinstance(date_str, str):
+                    # تابع تبدیل تاریخ با پشتیبانی از همه حالت‌ها
+                    def to_gregorian_if_jalali(date_str):
+                        try:
+                            if not isinstance(date_str, str):
+                                return date_str
+                            # اگر تاریخ شمسی است (۱۴xx)
+                            if date_str.startswith('14'):
+                                parts = date_str.replace('-', '/').split('/')
+                                if len(parts) == 3:
+                                    jy, jm, jd = map(int, parts)
+                                    gdate = jdatetime.date(jy, jm, jd).togregorian()
+                                    return gdate.strftime('%Y-%m-%d')
+                            # اگر تاریخ میلادی است (۲۰xx)
+                            elif date_str.startswith('20'):
+                                # همه جداکننده‌ها را به / تبدیل کن
+                                parts = date_str.replace('-', '/').split('/')
+                                if len(parts) == 3:
+                                    gy, gm, gd = map(int, parts)
+                                    return datetime.date(gy, gm, gd).strftime('%Y-%m-%d')
+                            # سایر موارد
                             return date_str
-                        # اگر تاریخ شمسی است (۱۴xx)
-                        if date_str.startswith('14'):
-                            parts = date_str.replace('-', '/').split('/')
-                            if len(parts) == 3:
-                                jy, jm, jd = map(int, parts)
-                                gdate = jdatetime.date(jy, jm, jd).togregorian()
-                                return gdate.strftime('%Y-%m-%d')
-                        # اگر تاریخ میلادی است (۲۰xx)
-                        elif date_str.startswith('20'):
-                            # همه جداکننده‌ها را به / تبدیل کن
-                            parts = date_str.replace('-', '/').split('/')
-                            if len(parts) == 3:
-                                gy, gm, gd = map(int, parts)
-                                return datetime.date(gy, gm, gd).strftime('%Y-%m-%d')
-                        # سایر موارد
-                        return date_str
-                    except Exception:
-                        return date_str
+                        except Exception:
+                            return date_str
 
-                df['CDT'] = df['CDT'].apply(to_gregorian_if_jalali)
+                    df['CDT'] = df['CDT'].apply(to_gregorian_if_jalali)
 
-            st.success("پردازش انجام شد. داده نهایی:")
-            st.dataframe(df.head())
+                st.success("پردازش انجام شد. داده نهایی:")
+                st.dataframe(df.head())
 
-            # --- بخش جدید: ارسال به بیگ‌کوئری ---
-            if st.button("ارسال به بیگ‌کوئری"):
-                try:
-                    # آپلود به جدول انتخابی، حالت append
-                    job_config = bigquery.LoadJobConfig(
-                        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-                        skip_leading_rows=0,  # چون دیتافریم است، ردیف عنوان لازم نیست
-                        source_format=bigquery.SourceFormat.CSV,
-                        autodetect=True      # ساختار جدول را از دیتافریم بگیرد
-                    )
-                    job = client.load_table_from_dataframe(df, table_path, job_config=job_config)
-                    job.result()  # منتظر بماند تا آپلود کامل شود
-                    st.success("✅ داده‌ها با موفقیت به جدول انتخاب شده بیگ‌کوئری اضافه شدند.")
-                except Exception as e:
-                    st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری: {e}")
+                # --- بخش جدید: ارسال به بیگ‌کوئری ---
+                if st.button("ارسال به بیگ‌کوئری"):
+                    if len(df) == 0:
+                        st.warning("داده‌ای برای ارسال به جدول وجود ندارد.")
+                    else:
+                        try:
+                            # آپلود به جدول انتخابی، حالت append
+                            job_config = bigquery.LoadJobConfig(
+                                write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+                                skip_leading_rows=0,  # چون دیتافریم است، ردیف عنوان لازم نیست
+                                source_format=bigquery.SourceFormat.CSV,
+                                autodetect=True      # ساختار جدول را از دیتافریم بگیرد
+                            )
+                            job = client.load_table_from_dataframe(df, table_path, job_config=job_config)
+                            job.result()  # منتظر بماند تا آپلود کامل شود
+                            st.success("✅ داده‌ها با موفقیت به جدول انتخاب شده بیگ‌کوئری اضافه شدند.")
+                        except Exception as e:
+                            st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری: {e}")
