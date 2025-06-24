@@ -35,7 +35,6 @@ if selected_table_name:
         st.error(f"خطا در دریافت بزرگ‌ترین UserServiceId: {e}")
         max_usv = 0
 
-    # پیام متنی وضعیت جدول
     st.info(f"جدول تا شماره **{max_usv}** آپدیت است.")
 
 # ---- آپلود و پاکسازی ----
@@ -104,7 +103,7 @@ if uploaded_file is not None:
         df_clean['ServicePrice'] = None
         df_clean['Package'] = None
 
-        # **حذف ردیف‌هایی که UserServiceId آنها <= max_usv باشد**
+        # حذف ردیف‌هایی که UserServiceId آنها <= max_usv باشد
         try:
             df_clean['UserServiceId'] = pd.to_numeric(df_clean['UserServiceId'], errors='coerce')
             df_clean = df_clean[df_clean['UserServiceId'] > max_usv].reset_index(drop=True)
@@ -113,3 +112,7 @@ if uploaded_file is not None:
 
         st.success("✅ پاکسازی کامل شد! ۱۰ سطر اول داده نهایی:")
         st.dataframe(df_clean.head(10))
+
+        # --- دکمه Sync to BigQuery ---
+        if st.button("🚀 Sync to BigQuery"):
+            st.info("فعلاً عملکرد همگام‌سازی تعریف نشده است. (در مرحله بعد)")
