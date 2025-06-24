@@ -18,6 +18,9 @@ table_names = [
     "test"
 ]
 
+if "upload_result" not in st.session_state:
+    st.session_state.upload_result = None
+
 selected_table_name = st.selectbox("نام جدول را انتخاب کنید", table_names)
 
 if selected_table_name:
@@ -42,11 +45,26 @@ if selected_table_name:
 
     uploaded_file = st.file_uploader("فایل CSV خود را آپلود کنید", type=["csv"])
 
-    if uploaded_file is not None:
+    # نمایش پیام موفقیت/خطا و دکمه بازگشت اگر آپلود شده یا خطا داده
+    if st.session_state.upload_result is not None:
+        status, msg, rowcount = st.session_state.upload_result
+        if status == "success":
+            st.success("✅ داده‌ها با موفقیت به جدول انتخاب شده بیگ‌کوئری اضافه شدند.")
+            st.info(f"{rowcount:,} سطر جدید به جدول {selected_table_name} اضافه شد.")
+        else:
+            st.error("❌ عملیات ارسال داده به جدول موفق نبود.")
+            st.error(f"جزئیات خطا: {msg}")
+        if st.button("بازگشت به خانه"):
+            st.session_state.upload_result = None
+            st.experimental_rerun()
+
+    # اگر نتیجه ارسال وجود ندارد، مراحل پردازش و ارسال را نمایش بده
+    elif uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
         st.write("پیش‌نمایش داده‌های خام:")
         st.dataframe(df.head())
 
+        # فقط اگر ستون UserServiceId هست ادامه بده
         if 'UserServiceId' not in df.columns:
             st.error("ستون UserServiceId در فایل وجود ندارد!")
         else:
@@ -54,9 +72,6 @@ if selected_table_name:
                 df['UserServiceId'] = pd.to_numeric(df['UserServiceId'], errors='coerce')
                 df = df[df['UserServiceId'].notna()]
                 df = df[df['UserServiceId'] > ronumber].reset_index(drop=True)
-                n_after = len(df)
-                if n_after == 0:
-                    st.warning("هیچ سطر جدیدی نسبت به جدول انتخابی وجود ندارد.")
             except Exception:
                 st.error("مشکل در تبدیل ستون UserServiceId به عدد. لطفا فایل را بررسی کنید.")
 
@@ -70,15 +85,16 @@ if selected_table_name:
                 df['SavingOffUsed'] = None
                 df['ServicePrice'] = None
 
-                # تبدیل نام ستون تاریخ به CreatDate
+                # تبدیل نام ستون CDT به CreatDate (مطابق جدول مقصد)
                 if 'CDT' in df.columns:
                     df = df.rename(columns={'CDT': 'CreatDate'})
 
-                # اطمینان از اینکه فقط ستون‌هایی که جدول دارد باقی بماند
+                # مرتب سازی دقیق و نگه داشتن فقط ستون‌های جدول مقصد
                 table_columns = [
                     'CreatDate','UserServiceId','Creator','ServiceName','Username',
                     'ServiceStatus','ServicePrice','Package','StartDate','EndDate'
                 ]
+                # فقط ستون‌های جدول را نگه‌دار (در همان ترتیب)
                 df = df[[col for col in table_columns if col in df.columns]]
 
                 # تبدیل تاریخ‌ها اگر لازم بود
@@ -120,10 +136,8 @@ if selected_table_name:
                             )
                             job = client.load_table_from_dataframe(df, table_path, job_config=job_config)
                             job.result()
-                            st.success("✅ داده‌ها با موفقیت به جدول انتخاب شده بیگ‌کوئری اضافه شدند.")
-                            st.info(f"{len(df):,} سطر جدید به جدول {selected_table_name} اضافه شد.")
-                            if st.button("بازگشت به خانه"):
-                                st.experimental_rerun()
+                            st.session_state.upload_result = ("success", "", len(df))
+                            st.experimental_rerun()
                         except Exception as e:
-                            st.error("❌ عملیات ارسال داده به جدول موفق نبود.")
-                            st.error(f"جزئیات خطا: {e}")
+                            st.session_state.upload_result = ("fail", str(e), 0)
+                            st.experimental_rerun()
