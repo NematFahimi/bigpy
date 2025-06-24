@@ -4,6 +4,7 @@ import jdatetime
 import datetime
 import numpy as np
 from google.cloud import bigquery
+import io
 
 st.set_page_config(page_title="Service Report Processor", layout="centered")
 st.title("📊 کار رو به کاردان بسپار")
@@ -12,7 +13,6 @@ st.title("📊 کار رو به کاردان بسپار")
 credentials_info = dict(st.secrets["gcp_service_account"])
 client = bigquery.Client.from_service_account_info(credentials_info)
 
-# ---- بخش انتخاب جدول ----
 table_names = [
     "hspdata",
     "hspdata_02",
@@ -38,7 +38,6 @@ if selected_table_name:
 
 uploaded_file = st.file_uploader("📁 فایل CSV خود را آپلود کنید", type=["csv"])
 
-# فقط وقتی فایل انتخاب شده باشد ادامه می‌دهد:
 if uploaded_file is not None:
     df_raw = pd.read_csv(uploaded_file)
     st.write("🗂️ پیش‌نمایش داده‌های خام (۱۰ سطر اول):")
@@ -116,40 +115,14 @@ if uploaded_file is not None:
         st.success("✅ پاکسازی کامل شد! ۱۰ سطر اول داده نهایی:")
         st.dataframe(df_clean.head(10))
 
-        # ذخیره دیتا‌فریم پاک شده در session_state تا در کلیک Sync دوباره محاسبه نشود
-        st.session_state['df_clean'] = df_clean
-
-        # --- دکمه Sync to BigQuery ---
-        if st.button("🚀 Sync to BigQuery"):
-            try:
-                df_clean = st.session_state['df_clean']
-                # تبدیل نوع ستون‌ها طبق اسکیم جدول بیگ‌کوئری
-                df_clean['CreatDate'] = pd.to_datetime(df_clean['CreatDate'], errors='coerce').dt.date
-                df_clean['UserServiceId'] = pd.to_numeric(df_clean['UserServiceId'], errors='coerce').astype('Int64')
-                df_clean['ServicePrice'] = pd.to_numeric(df_clean['ServicePrice'], errors='coerce')
-                df_clean['Package'] = pd.to_numeric(df_clean['Package'], errors='coerce')
-                for col in ['Creator', 'ServiceName', 'Username', 'ServiceStatus', 'StartDate', 'EndDate']:
-                    df_clean[col] = df_clean[col].astype(str)
-
-                job_config = bigquery.LoadJobConfig(
-                    write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-                    source_format=bigquery.SourceFormat.CSV,
-                    skip_leading_rows=0,
-                    schema=[
-                        bigquery.SchemaField("CreatDate", "DATE"),
-                        bigquery.SchemaField("UserServiceId", "INTEGER"),
-                        bigquery.SchemaField("Creator", "STRING"),
-                        bigquery.SchemaField("ServiceName", "STRING"),
-                        bigquery.SchemaField("Username", "STRING"),
-                        bigquery.SchemaField("ServiceStatus", "STRING"),
-                        bigquery.SchemaField("ServicePrice", "FLOAT"),
-                        bigquery.SchemaField("Package", "FLOAT"),
-                        bigquery.SchemaField("StartDate", "STRING"),
-                        bigquery.SchemaField("EndDate", "STRING"),
-                    ]
-                )
-                job = client.load_table_from_dataframe(df_clean, table_path, job_config=job_config)
-                job.result()
-                st.success(f"✅ ارسال داده به BigQuery با موفقیت انجام شد. تعداد ردیف‌ها: {len(df_clean)}")
-            except Exception as e:
-                st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری:\n{e}")
+        # --- دکمه دانلود خروجی به CSV برای کاربر ---
+        if not df_clean.empty:
+            csv_buffer = io.StringIO()
+            df_clean.to_csv(csv_buffer, index=False)
+            csv_buffer.seek(0)
+            st.download_button(
+                label="⬇️ دانلود خروجی CSV",
+                data=csv_buffer.getvalue(),
+                file_name="cleaned_output.csv",
+                mime="text/csv"
+            )
