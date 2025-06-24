@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import jdatetime
 import datetime
+import numpy as np
 from google.cloud import bigquery
 
 st.set_page_config(page_title="Service Report Processor", layout="centered")
@@ -96,9 +97,13 @@ if uploaded_file is not None:
 
         df_clean['CreatDate'] = df_clean['CreatDate'].apply(to_gregorian_if_jalali)
 
-        # مقادیر ستون‌های ServicePrice و Package پاک شوند
-        df_clean['ServicePrice'] = None
-        df_clean['Package'] = None
+        # مقادیر ستون‌های ServicePrice و Package کاملاً خالی (بدون هیچ مقدار NaN یا None یا 'nan')
+        df_clean['ServicePrice'] = np.nan
+        df_clean['Package'] = np.nan
+
+        # اطمینان از خالی بودن کامل رشته‌ای‌ها (در صورت نیاز)
+        for col in ['Creator', 'ServiceName', 'Username', 'ServiceStatus', 'StartDate', 'EndDate']:
+            df_clean[col] = df_clean[col].replace({None: '', 'None': '', 'nan': '', 'NaN': '', np.nan: ''})
 
         # حذف ردیف‌هایی که UserServiceId آنها <= max_usv باشد
         try:
@@ -112,7 +117,6 @@ if uploaded_file is not None:
 
         # --- دکمه Sync to BigQuery ---
         if st.button("🚀 Sync to BigQuery"):
-            # تبدیل نوع ستون‌ها طبق اسکیم جدول بیگ‌کوئری
             try:
                 df_clean['CreatDate'] = pd.to_datetime(df_clean['CreatDate'], errors='coerce').dt.date
                 df_clean['UserServiceId'] = pd.to_numeric(df_clean['UserServiceId'], errors='coerce').astype('Int64')
@@ -121,7 +125,6 @@ if uploaded_file is not None:
                 for col in ['Creator', 'ServiceName', 'Username', 'ServiceStatus', 'StartDate', 'EndDate']:
                     df_clean[col] = df_clean[col].astype(str)
 
-                # بارگذاری در بیگ‌کوئری با اسکیم مشخص
                 job_config = bigquery.LoadJobConfig(
                     write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
                     source_format=bigquery.SourceFormat.CSV,
