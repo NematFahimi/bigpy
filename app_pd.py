@@ -3,6 +3,10 @@ import pandas as pd
 import jdatetime
 import io
 import datetime
+from google.cloud import bigquery
+
+credentials_info = dict(st.secrets["gcp_service_account"])
+client = bigquery.Client.from_service_account_info(credentials_info)
 
 st.set_page_config(page_title="Service Report Processor", layout="centered")
 st.title("کار رو به کاردان بسپار")
