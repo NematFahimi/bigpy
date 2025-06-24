@@ -22,9 +22,7 @@ table_names = [
 
 selected_table_name = st.selectbox("✅ نام جدول را انتخاب کنید", table_names)
 
-# مقدار پیش‌فرض
 max_usv = 0
-
 if selected_table_name:
     table_path = f"frsphotspots.HSP.{selected_table_name}"
     query = f"SELECT MAX(UserServiceId) as max_usv FROM `{table_path}`"
@@ -37,7 +35,6 @@ if selected_table_name:
 
     st.info(f"جدول تا شماره **{max_usv}** آپدیت است.")
 
-# ---- آپلود و پاکسازی ----
 uploaded_file = st.file_uploader("📁 فایل CSV خود را آپلود کنید", type=["csv"])
 
 if uploaded_file is not None:
@@ -59,7 +56,7 @@ if uploaded_file is not None:
             cols.insert(0, cols.pop(cols.index("CDT")))
             df_clean = df_clean[cols]
 
-        # تغییر نام ستون‌ها
+        # تغییر نام ستون‌ها طبق اسکیم
         new_columns = [
             "CreatDate",
             "UserServiceId",
@@ -115,4 +112,35 @@ if uploaded_file is not None:
 
         # --- دکمه Sync to BigQuery ---
         if st.button("🚀 Sync to BigQuery"):
-            st.info("فعلاً عملکرد همگام‌سازی تعریف نشده است. (در مرحله بعد)")
+            # تبدیل نوع ستون‌ها طبق اسکیم جدول بیگ‌کوئری
+            try:
+                df_clean['CreatDate'] = pd.to_datetime(df_clean['CreatDate'], errors='coerce').dt.date
+                df_clean['UserServiceId'] = pd.to_numeric(df_clean['UserServiceId'], errors='coerce').astype('Int64')
+                df_clean['ServicePrice'] = pd.to_numeric(df_clean['ServicePrice'], errors='coerce')
+                df_clean['Package'] = pd.to_numeric(df_clean['Package'], errors='coerce')
+                for col in ['Creator', 'ServiceName', 'Username', 'ServiceStatus', 'StartDate', 'EndDate']:
+                    df_clean[col] = df_clean[col].astype(str)
+
+                # بارگذاری در بیگ‌کوئری با اسکیم مشخص
+                job_config = bigquery.LoadJobConfig(
+                    write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+                    source_format=bigquery.SourceFormat.CSV,
+                    skip_leading_rows=0,
+                    schema=[
+                        bigquery.SchemaField("CreatDate", "DATE"),
+                        bigquery.SchemaField("UserServiceId", "INTEGER"),
+                        bigquery.SchemaField("Creator", "STRING"),
+                        bigquery.SchemaField("ServiceName", "STRING"),
+                        bigquery.SchemaField("Username", "STRING"),
+                        bigquery.SchemaField("ServiceStatus", "STRING"),
+                        bigquery.SchemaField("ServicePrice", "FLOAT"),
+                        bigquery.SchemaField("Package", "FLOAT"),
+                        bigquery.SchemaField("StartDate", "STRING"),
+                        bigquery.SchemaField("EndDate", "STRING"),
+                    ]
+                )
+                job = client.load_table_from_dataframe(df_clean, table_path, job_config=job_config)
+                job.result()
+                st.success(f"✅ ارسال داده به BigQuery با موفقیت انجام شد. تعداد ردیف‌ها: {len(df_clean)}")
+            except Exception as e:
+                st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری:\n{e}")
