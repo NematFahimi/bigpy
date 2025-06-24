@@ -16,7 +16,8 @@ table_names = [
     "hspdata",
     "hspdata_02",
     "hspdata_ghor",
-    "hspdata_ac"
+    "hspdata_ac",
+    "test"  # جدول تست اضافه شد
 ]
 
 selected_table_name = st.selectbox("نام جدول را انتخاب کنید", table_names)
