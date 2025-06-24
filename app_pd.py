@@ -104,5 +104,12 @@ if uploaded_file is not None:
         df_clean['ServicePrice'] = None
         df_clean['Package'] = None
 
-        st.success("✅ پاکسازی کامل شد! ۱۰ سطر اول:")
+        # **حذف ردیف‌هایی که UserServiceId آنها <= max_usv باشد**
+        try:
+            df_clean['UserServiceId'] = pd.to_numeric(df_clean['UserServiceId'], errors='coerce')
+            df_clean = df_clean[df_clean['UserServiceId'] > max_usv].reset_index(drop=True)
+        except Exception:
+            st.warning("⚠️ خطا در تبدیل یا فیلتر کردن UserServiceId. لطفاً صحت داده‌ها را بررسی کنید.")
+
+        st.success("✅ پاکسازی کامل شد! ۱۰ سطر اول داده نهایی:")
         st.dataframe(df_clean.head(10))
