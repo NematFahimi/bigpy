@@ -1,7 +1,4 @@
 import streamlit as st
-import pandas as pd
-import jdatetime
-import datetime
 from google.cloud import bigquery
 
 st.set_page_config(page_title="Service Report Processor", layout="centered")
@@ -11,7 +8,7 @@ st.title("📊 کار رو به کاردان بسپار")
 credentials_info = dict(st.secrets["gcp_service_account"])
 client = bigquery.Client.from_service_account_info(credentials_info)
 
-# لیست جدول‌ها
+# ---- بخش انتخاب جدول ----
 table_names = [
     "hspdata",
     "hspdata_02",
@@ -32,5 +29,4 @@ if selected_table_name:
         st.error(f"خطا در دریافت بزرگ‌ترین UserServiceId: {e}")
         max_usv = 0
 
-    # نمایش پیام متنی
     st.info(f"جدول تا شماره **{max_usv}** آپدیت است.")
