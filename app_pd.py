@@ -13,3 +13,7 @@ if uploaded_file is not None:
     df_raw = pd.read_csv(uploaded_file)
     st.write("🗂️ پیش‌نمایش داده‌های خام (۱۰ سطر اول):")
     st.dataframe(df_raw.head(10))
+
+    # دکمه Clean Data
+    if st.button("🧹 Clean Data"):
+        st.info("هنوز هیچ عملکردی برای پاکسازی داده تعریف نشده است.")
