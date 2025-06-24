@@ -4,6 +4,7 @@ import jdatetime
 import io
 import datetime
 from google.cloud import bigquery
+import traceback  # افزودن برای نمایش ارور کامل
 
 # گرفتن کلید از سکریت (فرمت TOML)
 credentials_info = dict(st.secrets["gcp_service_account"])
@@ -113,7 +114,6 @@ if selected_table_name:
             # --- بخش جدید: ارسال به بیگ‌کوئری ---
             if st.button("ارسال به بیگ‌کوئری"):
                 try:
-                    # حذف هدر (ردیف اول دیتافریم هدر نیست! مشکلی ندارد)
                     job_config = bigquery.LoadJobConfig(
                         write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
                         skip_leading_rows=0,
@@ -133,4 +133,5 @@ if selected_table_name:
                         st.experimental_rerun()
 
                 except Exception as e:
-                    st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری: {e}")
+                    st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری:\n{e}")
+                    st.code(traceback.format_exc(), language="python")
