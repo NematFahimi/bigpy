@@ -109,7 +109,7 @@ if selected_table_name:
                                 write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
                                 skip_leading_rows=0,
                                 source_format=bigquery.SourceFormat.CSV,
-                                autodetect=True
+                                autodetect=False  # ساختار جدول باید دقیقاً با df یکی باشد
                             )
                             job = client.load_table_from_dataframe(df, table_path, job_config=job_config)
                             job.result()
@@ -118,4 +118,5 @@ if selected_table_name:
                             if st.button("بازگشت به خانه"):
                                 st.experimental_rerun()
                         except Exception as e:
-                            st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری: {e}")
+                            st.error("❌ عملیات ارسال داده به جدول موفق نبود.")
+                            st.error(f"جزئیات خطا: {e}")
