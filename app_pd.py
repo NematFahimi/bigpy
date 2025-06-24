@@ -4,6 +4,7 @@ import jdatetime
 import datetime
 import numpy as np
 from google.cloud import bigquery
+import io
 
 st.set_page_config(page_title="Service Report Processor", layout="centered")
 st.title("📊 کار رو به کاردان بسپار")
@@ -114,12 +115,14 @@ if uploaded_file is not None:
         st.success("✅ پاکسازی کامل شد! ۱۰ سطر اول داده نهایی:")
         st.dataframe(df_clean.head(10))
 
-        # --- دکمه ذخیره خروجی به CSV ---
-        if st.button("⬇️ ذخیره خروجی به CSV"):
-            try:
-                output_filename = "cleaned_output.csv"
-                df_clean.to_csv(output_filename, index=False)
-                st.success(f"✅ داده پاکسازی‌شده با موفقیت به فایل {output_filename} ذخیره شد. می‌توانید در ترمینال با دستور bq load تست کنید.")
-                st.info(f"برای آپلود به بیگ‌کوئری در ترمینال VS Code دستور زیر را اجرا کن:\n\nbq load --source_format=CSV --skip_leading_rows=1 {table_path} {output_filename}")
-            except Exception as e:
-                st.error(f"❌ خطا در ذخیره فایل CSV:\n{e}")
+        # --- دکمه دانلود خروجی به CSV برای کاربر ---
+        if not df_clean.empty:
+            csv_buffer = io.StringIO()
+            df_clean.to_csv(csv_buffer, index=False)
+            csv_buffer.seek(0)
+            st.download_button(
+                label="⬇️ دانلود خروجی CSV",
+                data=csv_buffer.getvalue(),
+                file_name="cleaned_output.csv",
+                mime="text/csv"
+            )
