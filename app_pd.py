@@ -109,13 +109,18 @@ if selected_table_name:
             st.success("پردازش انجام شد. داده نهایی:")
             st.dataframe(df.head())
 
-            # ساختن فایل خروجی برای دانلود
-            towrite = io.BytesIO()
-            df.to_csv(towrite, index=False, encoding='utf-8-sig')
-            towrite.seek(0)
-            st.download_button(
-                label="دانلود فایل خروجی CSV",
-                data=towrite,
-                file_name="ServiceReport_cleaned.csv",
-                mime="text/csv"
-            )
+            # --- بخش جدید: ارسال به بیگ‌کوئری ---
+            if st.button("ارسال به بیگ‌کوئری"):
+                try:
+                    # آپلود به جدول انتخابی، حالت append
+                    job_config = bigquery.LoadJobConfig(
+                        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+                        skip_leading_rows=0,  # چون دیتافریم است، ردیف عنوان لازم نیست
+                        source_format=bigquery.SourceFormat.CSV,
+                        autodetect=True      # ساختار جدول را از دیتافریم بگیرد
+                    )
+                    job = client.load_table_from_dataframe(df, table_path, job_config=job_config)
+                    job.result()  # منتظر بماند تا آپلود کامل شود
+                    st.success("✅ داده‌ها با موفقیت به جدول انتخاب شده بیگ‌کوئری اضافه شدند.")
+                except Exception as e:
+                    st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری: {e}")
