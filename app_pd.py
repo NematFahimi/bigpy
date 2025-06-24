@@ -115,35 +115,11 @@ if uploaded_file is not None:
         st.success("✅ پاکسازی کامل شد! ۱۰ سطر اول داده نهایی:")
         st.dataframe(df_clean.head(10))
 
-        # --- دکمه Sync to BigQuery ---
-        if st.button("🚀 Sync to BigQuery"):
-            try:
-                df_clean['CreatDate'] = pd.to_datetime(df_clean['CreatDate'], errors='coerce').dt.date
-                df_clean['UserServiceId'] = pd.to_numeric(df_clean['UserServiceId'], errors='coerce').astype('Int64')
-                df_clean['ServicePrice'] = pd.to_numeric(df_clean['ServicePrice'], errors='coerce')
-                df_clean['Package'] = pd.to_numeric(df_clean['Package'], errors='coerce')
-                for col in ['Creator', 'ServiceName', 'Username', 'ServiceStatus', 'StartDate', 'EndDate']:
-                    df_clean[col] = df_clean[col].astype(str)
-
-                job_config = bigquery.LoadJobConfig(
-                    write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-                    source_format=bigquery.SourceFormat.CSV,
-                    skip_leading_rows=0,
-                    schema=[
-                        bigquery.SchemaField("CreatDate", "DATE"),
-                        bigquery.SchemaField("UserServiceId", "INTEGER"),
-                        bigquery.SchemaField("Creator", "STRING"),
-                        bigquery.SchemaField("ServiceName", "STRING"),
-                        bigquery.SchemaField("Username", "STRING"),
-                        bigquery.SchemaField("ServiceStatus", "STRING"),
-                        bigquery.SchemaField("ServicePrice", "FLOAT"),
-                        bigquery.SchemaField("Package", "FLOAT"),
-                        bigquery.SchemaField("StartDate", "STRING"),
-                        bigquery.SchemaField("EndDate", "STRING"),
-                    ]
-                )
-                job = client.load_table_from_dataframe(df_clean, table_path, job_config=job_config)
-                job.result()
-                st.success(f"✅ ارسال داده به BigQuery با موفقیت انجام شد. تعداد ردیف‌ها: {len(df_clean)}")
-            except Exception as e:
-                st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری:\n{e}")
+   if st.button("⬇️ ذخیره خروجی به CSV"):
+    try:
+        output_filename = "cleaned_output.csv"
+        df_clean.to_csv(output_filename, index=False)
+        st.success(f"✅ داده پاکسازی‌شده با موفقیت به فایل {output_filename} ذخیره شد. می‌توانید در ترمینال با دستور bq load تست کنید.")
+        st.info(f"برای آپلود به بیگ‌کوئری در ترمینال VS Code دستور مشابه زیر را اجرا کن:\n\nbq load --source_format=CSV --skip_leading_rows=1 {table_path} {output_filename}")
+    except Exception as e:
+        st.error(f"❌ خطا در ذخیره فایل CSV:\n{e}")
