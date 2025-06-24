@@ -3,17 +3,16 @@ import pandas as pd
 import jdatetime
 import datetime
 from google.cloud import bigquery
-import re
 
-# ====== تنظیم کلید سرویس ======
+# --- کلید ---
 credentials_info = dict(st.secrets["gcp_service_account"])
 client = bigquery.Client.from_service_account_info(credentials_info)
 
-# ====== تنظیم ظاهر ======
+# --- تنظیمات صفحه ---
 st.set_page_config(page_title="Service Report Processor", layout="centered")
 st.title("📊 کار رو به کاردان بسپار")
 
-# ====== لیست جدول‌ها ======
+# --- جدول‌ها ---
 table_names = [
     "hspdata",
     "hspdata_02",
@@ -24,126 +23,113 @@ table_names = [
 
 selected_table_name = st.selectbox("✅ نام جدول را انتخاب کنید", table_names)
 
-# ====== نام دقیق فیلدها طبق جدول BigQuery ======
-expected_columns = [
-    "CreatDate",
-    "UserServiceId",
-    "Creator",
-    "ServiceName",
-    "Username",
-    "ServiceStatus",
-    "ServicePrice",
-    "Package",
-    "StartDate",
-    "EndDate"
-]
-
-# ====== شروع پردازش ======
 if selected_table_name:
     table_path = f"frsphotspots.HSP.{selected_table_name}"
     query = f"SELECT MAX(UserServiceId) as max_usv FROM `{table_path}`"
     try:
         result = client.query(query).result()
-        max_usv = next(result)['max_usv'] or 0
+        max_usv = next(result)['max_usv']
     except Exception as e:
-        st.error(f"خطا در دریافت بزرگ‌ترین UserServiceId از بیگ‌کوئری: {e}")
+        st.error(f"خطا در دریافت حداکثر UserServiceId: {e}")
         max_usv = 0
 
     st.number_input(
-        "🔢 بزرگ‌ترین UserServiceId موجود:",
+        "🔢 بزرگ‌ترین UserServiceId:",
         min_value=0,
-        value=int(max_usv),
+        value=int(max_usv) if max_usv is not None else 0,
         step=1,
         key="readonly_usv",
         disabled=True
     )
     ronumber = max_usv
 
-    # ====== آپلود فایل ======
-    uploaded_file = st.file_uploader("📁 فایل CSV خود را آپلود کنید", type=["csv"])
+    # --- آپلود فایل ---
+    uploaded_file = st.file_uploader("📁 فایل CSV را آپلود کنید", type=["csv"])
 
     if uploaded_file is not None:
-        df_raw = pd.read_csv(uploaded_file)
+        df = pd.read_csv(uploaded_file)
 
-        # ====== حذف ستون رونمبر اضافی (اوتومات) ======
-        if df_raw.columns[0].lower() not in ["cdt", "creatdate"]:
-            df_raw = df_raw.iloc[:, 1:]
+        # ✅ حذف ستون رونمبر اضافی اگر هست
+        if df.columns[0].lower() not in ["cdt", "creatdate"]:
+            df = df.iloc[:, 1:]
 
-        # ====== تغییر نام ستون‌ها ======
+        # ✅ تغییر نام ستون‌ها
         rename_map = {
             "CDT": "CreatDate",
             "SavingOffUsed": "Package"
         }
-        df = df_raw.rename(columns=rename_map).copy()
+        df = df.rename(columns=rename_map)
 
-        # ====== انتخاب ستون‌های مورد نیاز و پر کردن خالی‌ها ======
-        clean_df = pd.DataFrame()
-        for col in expected_columns:
-            if col in df.columns:
-                clean_df[col] = df[col]
-            else:
-                clean_df[col] = None  # اگر موجود نیست، خالی
+        # ✅ ترتیب ستون‌ها دقیق طبق جدول
+        target_columns = [
+            "CreatDate",
+            "UserServiceId",
+            "Creator",
+            "ServiceName",
+            "Username",
+            "ServiceStatus",
+            "ServicePrice",
+            "Package",
+            "StartDate",
+            "EndDate"
+        ]
+        # هر ستونی که نیست → اضافه می‌کنیم خالی
+        for col in target_columns:
+            if col not in df.columns:
+                df[col] = None
+        df = df[target_columns]
 
-        # ====== تبدیل CDT (تاریخ) به میلادی ======
-        def to_gregorian_if_jalali(date_str):
-            try:
-                if not isinstance(date_str, str):
+        st.write("📑 پیش‌نمایش داده‌ها:")
+        st.dataframe(df.head())
+
+        try:
+            df['UserServiceId'] = pd.to_numeric(df['UserServiceId'], errors='coerce')
+        except Exception:
+            st.error("🚫 مشکل در تبدیل UserServiceId به عدد")
+
+        if st.button("🔍 پردازش داده"):
+            # حذف سطرها با UserServiceId کوچکتر
+            df = df[df['UserServiceId'] > ronumber].reset_index(drop=True)
+
+            # فقط بخش تاریخ CreatDate
+            df['CreatDate'] = df['CreatDate'].astype(str).str.split().str[0]
+
+            # تابع تبدیل تاریخ
+            def to_gregorian_if_jalali(date_str):
+                try:
+                    if not isinstance(date_str, str):
+                        return date_str
+                    if date_str.startswith('14'):
+                        parts = date_str.replace('-', '/').split('/')
+                        if len(parts) == 3:
+                            jy, jm, jd = map(int, parts)
+                            gdate = jdatetime.date(jy, jm, jd).togregorian()
+                            return gdate.strftime('%Y-%m-%d')
+                    elif date_str.startswith('20'):
+                        parts = date_str.replace('-', '/').split('/')
+                        if len(parts) == 3:
+                            gy, gm, gd = map(int, parts)
+                            return datetime.date(gy, gm, gd).strftime('%Y-%m-%d')
                     return date_str
-                if date_str.startswith('14'):
-                    parts = date_str.replace('-', '/').split('/')
-                    if len(parts) == 3:
-                        jy, jm, jd = map(int, parts)
-                        gdate = jdatetime.date(jy, jm, jd).togregorian()
-                        return gdate.strftime('%Y-%m-%d')
-                elif date_str.startswith('20'):
-                    parts = date_str.replace('-', '/').split('/')
-                    if len(parts) == 3:
-                        gy, gm, gd = map(int, parts)
-                        return datetime.date(gy, gm, gd).strftime('%Y-%m-%d')
-                return date_str
-            except:
-                return date_str
+                except:
+                    return date_str
 
-        clean_df['CreatDate'] = clean_df['CreatDate'].astype(str).str.split().str[0]
-        clean_df['CreatDate'] = clean_df['CreatDate'].apply(to_gregorian_if_jalali)
+            df['CreatDate'] = df['CreatDate'].apply(to_gregorian_if_jalali)
 
-        # ====== UserServiceId به عدد ======
-        clean_df['UserServiceId'] = pd.to_numeric(clean_df['UserServiceId'], errors='coerce')
+            st.success("✅ پردازش انجام شد:")
+            st.dataframe(df.head())
 
-        # ====== فیلتر ردیف‌های قدیمی ======
-        clean_df = clean_df[clean_df['UserServiceId'] > ronumber].reset_index(drop=True)
-
-        # ====== نمایش پیش‌نمایش ======
-        st.success("✅ پردازش با موفقیت انجام شد! داده نهایی:")
-        st.dataframe(clean_df)
-
-        # ====== ارسال به BigQuery ======
-        if st.button("🚀 ارسال به بیگ‌کوئری"):
-            try:
-                job_config = bigquery.LoadJobConfig(
-                    write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-                    source_format=bigquery.SourceFormat.CSV,
-                    skip_leading_rows=0,
-                    schema=[
-                        bigquery.SchemaField("CreatDate", "DATE"),
-                        bigquery.SchemaField("UserServiceId", "INTEGER"),
-                        bigquery.SchemaField("Creator", "STRING"),
-                        bigquery.SchemaField("ServiceName", "STRING"),
-                        bigquery.SchemaField("Username", "STRING"),
-                        bigquery.SchemaField("ServiceStatus", "STRING"),
-                        bigquery.SchemaField("ServicePrice", "FLOAT"),
-                        bigquery.SchemaField("Package", "FLOAT"),
-                        bigquery.SchemaField("StartDate", "STRING"),
-                        bigquery.SchemaField("EndDate", "STRING"),
-                    ],
-                )
-                job = client.load_table_from_dataframe(clean_df, table_path, job_config=job_config)
-                job.result()
-
-                st.success(f"✅ ارسال موفق بود! تعداد ردیف افزوده‌شده: {len(clean_df)}")
-
-                if st.button("🏠 بازگشت به خانه"):
-                    st.experimental_rerun()
-
-            except Exception as e:
-                st.error(f"❌ خطا در ارسال به بیگ‌کوئری:\n\n{e}")
+            # --- ارسال به BigQuery ---
+            if st.button("🚀 ارسال به بیگ‌کوئری"):
+                try:
+                    job_config = bigquery.LoadJobConfig(
+                        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+                        skip_leading_rows=0,
+                        source_format=bigquery.SourceFormat.CSV,
+                        autodetect=True
+                    )
+                    job = client.load_table_from_dataframe(df, table_path, job_config=job_config)
+                    job.result()
+                    st.success(f"✅ داده‌ها ارسال شدند. تعداد ردیف افزوده‌شده: {len(df)}")
+                except Exception as e:
+                    st.error(f"❌ خطا در ارسال به BigQuery:\n\n{e}")
