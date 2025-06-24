@@ -45,7 +45,7 @@ if selected_table_name:
 
     uploaded_file = st.file_uploader("فایل CSV خود را آپلود کنید", type=["csv"])
 
-    # نمایش پیام موفقیت/خطا و دکمه بازگشت اگر آپلود شده یا خطا داده
+    # پیام موفقیت/خطا و دکمه بازگشت
     if st.session_state.upload_result is not None:
         status, msg, rowcount = st.session_state.upload_result
         if status == "success":
@@ -58,7 +58,6 @@ if selected_table_name:
             st.session_state.upload_result = None
             st.experimental_rerun()
 
-    # اگر نتیجه ارسال وجود ندارد، مراحل پردازش و ارسال را نمایش بده
     elif uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
         st.write("پیش‌نمایش داده‌های خام:")
@@ -76,30 +75,28 @@ if selected_table_name:
                 st.error("مشکل در تبدیل ستون UserServiceId به عدد. لطفا فایل را بررسی کنید.")
 
             if st.button("پردازش داده"):
-                columns_to_drop = [
-                    'PayPlan', 'DirectOff', 'VAT', 'PayPrice', 'Off', 'SavingOff',
-                    'CancelDT', 'ReturnPrice', 'InstallmentNo', 'InstallmentPeriod',
-                    'InstallmentFirstCash', 'ServiceIsDel'
-                ]
-                df = df.drop(columns=columns_to_drop, errors='ignore')
-                df['SavingOffUsed'] = None
-                df['ServicePrice'] = None
-
-                # تبدیل نام ستون CDT به CreatDate (مطابق جدول مقصد)
+                # تبدیل نام CDT به CreatDate
                 if 'CDT' in df.columns:
                     df = df.rename(columns={'CDT': 'CreatDate'})
-
-                # مرتب سازی دقیق و نگه داشتن فقط ستون‌های جدول مقصد
+                # فقط ستون‌هایی که در جدول بیگ‌کوئری هستند، به ترتیب و نام دقیق
                 table_columns = [
-                    'CreatDate','UserServiceId','Creator','ServiceName','Username',
-                    'ServiceStatus','ServicePrice','Package','StartDate','EndDate'
+                    ('CreatDate', 'date'),
+                    ('UserServiceId', 'int'),
+                    ('Creator', 'str'),
+                    ('ServiceName', 'str'),
+                    ('Username', 'str'),
+                    ('ServiceStatus', 'str'),
+                    ('ServicePrice', 'float'),
+                    ('Package', 'float'),
+                    ('StartDate', 'str'),
+                    ('EndDate', 'str')
                 ]
-                # فقط ستون‌های جدول را نگه‌دار (در همان ترتیب)
-                df = df[[col for col in table_columns if col in df.columns]]
+                out_cols = [col for col, _ in table_columns]
+                # فقط ستون‌های درست را نگه دار
+                df = df[[c for c in out_cols if c in df.columns]]
 
-                # تبدیل تاریخ‌ها اگر لازم بود
+                # تبدیل تاریخ‌ها و تایپ هر ستون
                 if 'CreatDate' in df.columns:
-                    df['CreatDate'] = df['CreatDate'].astype(str).str.split().str[0]
                     def to_gregorian_if_jalali(date_str):
                         try:
                             if not isinstance(date_str, str):
@@ -118,9 +115,22 @@ if selected_table_name:
                             return date_str
                         except Exception:
                             return date_str
+                    df['CreatDate'] = df['CreatDate'].astype(str).str.split().str[0]
                     df['CreatDate'] = df['CreatDate'].apply(to_gregorian_if_jalali)
 
-                st.success("پردازش انجام شد. داده نهایی:")
+                # تبدیل نوع ستون‌ها مطابق اسکیم جدول
+                for col, typ in table_columns:
+                    if col in df.columns:
+                        if typ == "int":
+                            df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64')
+                        elif typ == "float":
+                            df[col] = pd.to_numeric(df[col], errors='coerce').astype(float)
+                        elif typ == "str":
+                            df[col] = df[col].astype(str)
+                        elif typ == "date":
+                            df[col] = pd.to_datetime(df[col], errors='coerce').dt.date.astype(str)
+
+                st.success("پردازش انجام شد. داده نهایی (فقط ستون‌های صحیح):")
                 st.dataframe(df.head())
 
                 if len(df) == 0:
@@ -128,16 +138,22 @@ if selected_table_name:
                 else:
                     if st.button("ارسال به بیگ‌کوئری"):
                         try:
+                            # ترتیب و نام ستون‌ها دقیق و فقط همان ستون‌های جدول باشد
+                            df_to_send = df[[col for col, _ in table_columns if col in df.columns]]
                             job_config = bigquery.LoadJobConfig(
                                 write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
                                 skip_leading_rows=0,
                                 source_format=bigquery.SourceFormat.CSV,
                                 autodetect=False
                             )
-                            job = client.load_table_from_dataframe(df, table_path, job_config=job_config)
+                            job = client.load_table_from_dataframe(df_to_send, table_path, job_config=job_config)
                             job.result()
-                            st.session_state.upload_result = ("success", "", len(df))
+                            st.session_state.upload_result = ("success", "", len(df_to_send))
                             st.experimental_rerun()
                         except Exception as e:
+                            # نمایش خطا و دیتافریم جهت دیباگ
+                            st.error("❌ عملیات ارسال داده به جدول موفق نبود.")
+                            st.error(f"جزئیات خطا: {e}")
+                            st.dataframe(df.head())
                             st.session_state.upload_result = ("fail", str(e), 0)
                             st.experimental_rerun()
