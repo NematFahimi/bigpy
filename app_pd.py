@@ -38,6 +38,10 @@ if selected_table_name:
 
 uploaded_file = st.file_uploader("📁 فایل CSV خود را آپلود کنید", type=["csv"])
 
+# تعریف اولیه session_state برای نگهداری داده پاک‌شده
+if 'cleaned_df' not in st.session_state:
+    st.session_state['cleaned_df'] = pd.DataFrame()
+
 if uploaded_file is not None:
     df_raw = pd.read_csv(uploaded_file)
     st.write("🗂️ پیش‌نمایش داده‌های خام (۱۰ سطر اول):")
@@ -97,32 +101,35 @@ if uploaded_file is not None:
 
         df_clean['CreatDate'] = df_clean['CreatDate'].apply(to_gregorian_if_jalali)
 
-        # مقادیر ستون‌های ServicePrice و Package کاملاً خالی (بدون هیچ مقدار NaN یا None یا 'nan')
+        # مقادیر ستون‌های ServicePrice و Package کاملاً خالی
         df_clean['ServicePrice'] = np.nan
         df_clean['Package'] = np.nan
 
-        # اطمینان از خالی بودن کامل رشته‌ای‌ها (در صورت نیاز)
+        # خالی‌سازی رشته‌ای‌ها در صورت نیاز
         for col in ['Creator', 'ServiceName', 'Username', 'ServiceStatus', 'StartDate', 'EndDate']:
             df_clean[col] = df_clean[col].replace({None: '', 'None': '', 'nan': '', 'NaN': '', np.nan: ''})
 
-        # حذف ردیف‌هایی که UserServiceId آنها <= max_usv باشد
+        # فیلتر کردن UserServiceId
         try:
             df_clean['UserServiceId'] = pd.to_numeric(df_clean['UserServiceId'], errors='coerce')
             df_clean = df_clean[df_clean['UserServiceId'] > max_usv].reset_index(drop=True)
         except Exception:
             st.warning("⚠️ خطا در تبدیل یا فیلتر کردن UserServiceId. لطفاً صحت داده‌ها را بررسی کنید.")
 
+        # ذخیره در session_state
+        st.session_state['cleaned_df'] = df_clean
+
         st.success("✅ پاکسازی کامل شد! ۱۰ سطر اول داده نهایی:")
         st.dataframe(df_clean.head(10))
 
-        # --- دکمه دانلود خروجی به CSV برای کاربر ---
-        if not df_clean.empty:
-            csv_buffer = io.StringIO()
-            df_clean.to_csv(csv_buffer, index=False)
-            csv_buffer.seek(0)
-            st.download_button(
-                label="⬇️ دانلود خروجی CSV",
-                data=csv_buffer.getvalue(),
-                file_name="cleaned_output.csv",
-                mime="text/csv"
-            )
+# --- دکمه دانلود خروجی CSV ---
+if not st.session_state['cleaned_df'].empty:
+    csv_buffer = io.StringIO()
+    st.session_state['cleaned_df'].to_csv(csv_buffer, index=False)
+    csv_buffer.seek(0)
+    st.download_button(
+        label="⬇️ دانلود خروجی CSV",
+        data=csv_buffer.getvalue(),
+        file_name="cleaned_output.csv",
+        mime="text/csv"
+    )
