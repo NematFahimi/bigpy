@@ -43,9 +43,6 @@ if uploaded_file is not None:
     st.write("🗂️ پیش‌نمایش داده‌های خام (۱۰ سطر اول):")
     st.dataframe(df_raw.head(10))
 
-    # نمایش لیست ستون‌های فایل CSV
-    st.write("🔍 ستون‌های فایل CSV:", df_raw.columns.tolist())
-
     if st.button("🧹 Clean Data"):
         columns_to_drop = [
             'PayPlan', 'DirectOff', 'VAT', 'PayPrice', 'Off', 'SavingOff',
@@ -54,13 +51,13 @@ if uploaded_file is not None:
         ]
         df_clean = df_raw.drop(columns=columns_to_drop, errors='ignore')
 
-        # انتقال ستون CDT به ابتدای جدول اگر موجود باشد
+        # انتقال ستون تاریخ "CDT" به ابتدای جدول (اگر وجود داشت)
         cols = list(df_clean.columns)
         if "CDT" in cols:
             cols.insert(0, cols.pop(cols.index("CDT")))
             df_clean = df_clean[cols]
 
-        # تغییر نام ستون‌ها طبق اسکیم هدف
+        # تغییر نام ستون‌ها طبق اسکیم
         new_columns = [
             "CreatDate",
             "UserServiceId",
@@ -78,7 +75,7 @@ if uploaded_file is not None:
         # فقط بخش تاریخ را نگه‌دار
         df_clean['CreatDate'] = df_clean['CreatDate'].astype(str).str.split().str[0]
 
-        # تابع تبدیل تاریخ جلالی به میلادی
+        # تابع تبدیل تاریخ به میلادی
         def to_gregorian_if_jalali(date_str):
             try:
                 if not isinstance(date_str, str):
@@ -100,34 +97,32 @@ if uploaded_file is not None:
 
         df_clean['CreatDate'] = df_clean['CreatDate'].apply(to_gregorian_if_jalali)
 
-        # مقداردهی خالی به ستون‌های ServicePrice و Package
+        # مقادیر ستون‌های ServicePrice و Package کاملاً خالی (بدون هیچ مقدار NaN یا None یا 'nan')
         df_clean['ServicePrice'] = np.nan
         df_clean['Package'] = np.nan
 
-        # جایگزینی مقادیر None و NaN با رشته خالی در ستون‌های متنی
+        # اطمینان از خالی بودن کامل رشته‌ای‌ها (در صورت نیاز)
         for col in ['Creator', 'ServiceName', 'Username', 'ServiceStatus', 'StartDate', 'EndDate']:
             df_clean[col] = df_clean[col].replace({None: '', 'None': '', 'nan': '', 'NaN': '', np.nan: ''})
 
-        # فیلتر کردن ردیف‌هایی که UserServiceId آنها <= max_usv است
+        # حذف ردیف‌هایی که UserServiceId آنها <= max_usv باشد
         try:
             df_clean['UserServiceId'] = pd.to_numeric(df_clean['UserServiceId'], errors='coerce')
             df_clean = df_clean[df_clean['UserServiceId'] > max_usv].reset_index(drop=True)
         except Exception:
             st.warning("⚠️ خطا در تبدیل یا فیلتر کردن UserServiceId. لطفاً صحت داده‌ها را بررسی کنید.")
 
-        st.session_state['cleaned_df'] = df_clean
-
         st.success("✅ پاکسازی کامل شد! ۱۰ سطر اول داده نهایی:")
         st.dataframe(df_clean.head(10))
 
-# --- دکمه دانلود CSV در صورت وجود داده پاک‌شده ---
-if 'cleaned_df' in st.session_state and not st.session_state['cleaned_df'].empty:
-    csv_buffer = io.StringIO()
-    st.session_state['cleaned_df'].to_csv(csv_buffer, index=False)
-    csv_buffer.seek(0)
-    st.download_button(
-        label="⬇️ دانلود خروجی CSV",
-        data=csv_buffer.getvalue(),
-        file_name="cleaned_output.csv",
-        mime="text/csv"
-    )
+        # --- دکمه دانلود خروجی به CSV برای کاربر ---
+        if not df_clean.empty:
+            csv_buffer = io.StringIO()
+            df_clean.to_csv(csv_buffer, index=False)
+            csv_buffer.seek(0)
+            st.download_button(
+                label="⬇️ دانلود خروجی CSV",
+                data=csv_buffer.getvalue(),
+                file_name="cleaned_output.csv",
+                mime="text/csv"
+            )
