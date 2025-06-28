@@ -2,7 +2,7 @@ import streamlit as st
 from google.cloud import bigquery
 import pandas as pd
 from fpdf import FPDF
-import copy  # حتما اضافه کن
+import copy
 
 def safe_text(text):
     try:
@@ -78,7 +78,6 @@ def export_df_to_pdf(df, filename):
 def find_creator_data(creator, numeric_sql, numeric_value, date_sql, date_value, tables_priority):
     for table_name in tables_priority:
         conditions = ["Creator = @creator"]
-        # همیشه پارامترها را کپی کن تا خراب نشوند!
         params = [bigquery.ScalarQueryParameter("creator", "STRING", creator)]
         if numeric_sql:
             conditions.append(numeric_sql)
@@ -88,13 +87,27 @@ def find_creator_data(creator, numeric_sql, numeric_value, date_sql, date_value,
             params += copy.deepcopy(date_value)
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         query_base = f"SELECT * FROM frsphotspots.HSP.{table_name} {where_clause}"
+
+        # نمایش اطلاعات تستی
+        st.info(
+            f"🟢 <b>جدول:</b> {table_name} | <b>Creator:</b> <code>{creator}</code> | "
+            f"<b>Query:</b> <code>{query_base}</code> | <b>Params:</b> {params}",
+            icon="ℹ️", unsafe_allow_html=True
+        )
         try:
             res = client.query(query_base, bigquery.QueryJobConfig(query_parameters=params)).result()
             rows = [dict(row) for row in res]
+            st.write(f"⬅️ تعداد رکورد: {len(rows)} از جدول {table_name} برای Creator={creator}")
             if rows:
+                st.write(rows)
                 return pd.DataFrame(rows), table_name
         except Exception as e:
+            st.error(
+                f"❌ خطا در جدول <b>{table_name}</b> برای Creator=<b>{creator}</b>:<br><code>{str(e)}</code>",
+                unsafe_allow_html=True
+            )
             continue
+    st.warning(f"Creator <b>{creator}</b> در هیچ جدول یافت نشد.", unsafe_allow_html=True)
     return pd.DataFrame(), None
 
 st.title("📊 پنل گزارشات فارس‌روت")
