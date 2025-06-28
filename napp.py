@@ -1,7 +1,6 @@
 import streamlit as st
 from google.cloud import bigquery
 import pandas as pd
-from datetime import datetime
 from fpdf import FPDF
 
 def safe_text(text):
@@ -78,17 +77,18 @@ def export_df_to_pdf(df, filename, add_total=False):
         fill = not fill
     pdf.output(filename)
 
-# تابع کمکی جستجو در جدول‌ها به ترتیب
+# تابع کمکی جستجو در جدول‌ها به ترتیب، با چاپ لاگ
 def search_in_tables(query_base, params, tables_priority):
     for table_name in tables_priority:
         query = query_base.format(table_path=f"frsphotspots.HSP.{table_name}")
         try:
             results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
             rows = [dict(row) for row in results]
+            print(f"Tried table: {table_name}, found {len(rows)} rows")
             if rows:
                 return pd.DataFrame(rows), table_name
         except Exception as e:
-            # اگر دسترسی جدول نبود یا خطا داشت، از جدول بعدی امتحان کن
+            print(f"Error in table {table_name}: {e}")
             continue
     return pd.DataFrame(), None
 
@@ -298,3 +298,22 @@ else:
             st.info(f"داده‌ها از جدول **{used_table}** نمایش داده شد.")
         else:
             st.warning("داده‌ای برای خلاصه یافت نشد.")
+
+# ========= دکمه تست مستقیم =========
+if st.button("تست مستقیم جدول دوم"):
+    try:
+        query = "SELECT * FROM frsphotspots.HSP.hspdata_02 LIMIT 5"
+        results = client.query(query).result()
+        rows = [dict(row) for row in results]
+        st.write(f"{len(rows)} رکورد از جدول دوم:", rows)
+    except Exception as e:
+        st.error(f"خطا: {e}")
+
+if st.button("تست مستقیم جدول سوم"):
+    try:
+        query = "SELECT * FROM frsphotspots.HSP.hspdata_ghor LIMIT 5"
+        results = client.query(query).result()
+        rows = [dict(row) for row in results]
+        st.write(f"{len(rows)} رکورد از جدول سوم:", rows)
+    except Exception as e:
+        st.error(f"خطا: {e}")
