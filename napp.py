@@ -2,6 +2,7 @@ import streamlit as st
 from google.cloud import bigquery
 import pandas as pd
 from fpdf import FPDF
+import copy
 
 def safe_text(text):
     try:
@@ -13,7 +14,7 @@ credentials_info = dict(st.secrets["gcp_service_account"])
 client = bigquery.Client.from_service_account_info(credentials_info)
 tables_priority = ["hspdata", "hspdata_02", "hspdata_ghor"]
 
-def export_df_to_pdf(df, filename, add_total=False):
+def export_df_to_pdf(df, filename):
     class PDF(FPDF):
         def __init__(self, col_widths, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -74,18 +75,39 @@ def export_df_to_pdf(df, filename, add_total=False):
         fill = not fill
     pdf.output(filename)
 
-# این تابع برای هر Creator جدا جدا دنبال می‌گردد
-def find_creator_data(creator, query_base, params, tables_priority):
+def find_creator_data(creator, numeric_sql, numeric_value, date_sql, date_value, tables_priority):
     for table_name in tables_priority:
-        query = query_base.format(table_path=f"frsphotspots.HSP.{table_name}")
+        conditions = ["Creator = @creator"]
+        params = [bigquery.ScalarQueryParameter("creator", "STRING", creator)]
+        if numeric_sql:
+            conditions.append(numeric_sql)
+            params += copy.deepcopy(numeric_value)
+        if date_sql:
+            conditions.append(date_sql)
+            params += copy.deepcopy(date_value)
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        query_base = f"SELECT * FROM frsphotspots.HSP.{table_name} {where_clause}"
+
+        # نمایش اطلاعات تستی
+        st.info(
+            f"🟢 <b>جدول:</b> {table_name} | <b>Creator:</b> <code>{creator}</code> | "
+            f"<b>Query:</b> <code>{query_base}</code> | <b>Params:</b> {params}",
+            icon="ℹ️", unsafe_allow_html=True
+        )
         try:
-            res = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
+            res = client.query(query_base, bigquery.QueryJobConfig(query_parameters=params)).result()
             rows = [dict(row) for row in res]
+            st.write(f"⬅️ تعداد رکورد: {len(rows)} از جدول {table_name} برای Creator={creator}")
             if rows:
-                # هر وقت اولین جدول که دیتا داشت را پیدا کرد، همان را برمی‌گرداند
+                st.write(rows)
                 return pd.DataFrame(rows), table_name
         except Exception as e:
+            st.error(
+                f"❌ خطا در جدول <b>{table_name}</b> برای Creator=<b>{creator}</b>:<br><code>{str(e)}</code>",
+                unsafe_allow_html=True
+            )
             continue
+    st.warning(f"Creator <b>{creator}</b> در هیچ جدول یافت نشد.", unsafe_allow_html=True)
     return pd.DataFrame(), None
 
 st.title("📊 پنل گزارشات فارس‌روت")
@@ -100,37 +122,35 @@ if creators_input.strip():
 
 with st.expander("شماره مسلسل سرویس ها را وارد کنید"):
     numeric_option = st.selectbox("نوع شرط", ["بدون فیلتر", "=", ">=", "<=", "BETWEEN"])
+    numeric_sql, numeric_value = None, []
     if numeric_option == "BETWEEN":
         num_min = st.number_input("حد پایین", step=1, value=0)
         num_max = st.number_input("حد بالا", step=1, value=0)
         numeric_sql = "UserServiceId BETWEEN @usv1 AND @usv2"
-        numeric_params = [
+        numeric_value = [
             bigquery.ScalarQueryParameter("usv1", "INT64", int(num_min)),
             bigquery.ScalarQueryParameter("usv2", "INT64", int(num_max))
         ]
     elif numeric_option != "بدون فیلتر":
         num_value = st.number_input("عدد", step=1, value=0)
         numeric_sql = f"UserServiceId {numeric_option} @usv1"
-        numeric_params = [bigquery.ScalarQueryParameter("usv1", "INT64", int(num_value))]
-    else:
-        numeric_sql, numeric_params = None, []
+        numeric_value = [bigquery.ScalarQueryParameter("usv1", "INT64", int(num_value))]
 
 with st.expander("تاریخ را انتخاب  کنید"):
     date_option = st.selectbox("نوع فیلتر تاریخ", ["بدون فیلتر", "تاریخ خاص", "تاریخ سفارشی"])
+    date_sql, date_value = None, []
     if date_option == "تاریخ خاص":
-        date_value = st.date_input("تاریخ")
+        date_value0 = st.date_input("تاریخ")
         date_sql = "CreatDate = @dt1"
-        date_params = [bigquery.ScalarQueryParameter("dt1", "DATE", date_value)]
+        date_value = [bigquery.ScalarQueryParameter("dt1", "DATE", date_value0)]
     elif date_option == "تاریخ سفارشی":
         date_start = st.date_input("تاریخ شروع")
         date_end = st.date_input("تاریخ پایان")
         date_sql = "CreatDate BETWEEN @dt1 AND @dt2"
-        date_params = [
+        date_value = [
             bigquery.ScalarQueryParameter("dt1", "DATE", date_start),
             bigquery.ScalarQueryParameter("dt2", "DATE", date_end)
         ]
-    else:
-        date_sql, date_params = None, []
 
 st.markdown("""
 <style>
@@ -156,17 +176,12 @@ else:
         total_df = []
         info_tables = []
         for creator in selected_creators:
-            # هر Creator جدا جدا
-            conditions, params = ["Creator = @creator"], [bigquery.ScalarQueryParameter("creator", "STRING", creator)]
-            if numeric_sql:
-                conditions.append(numeric_sql)
-                params += numeric_params
-            if date_sql:
-                conditions.append(date_sql)
-                params += date_params
-            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-            query_base = "SELECT * FROM {table_path} " + where_clause
-            df, used_table = find_creator_data(creator, query_base, params, tables_priority)
+            df, used_table = find_creator_data(
+                creator,
+                numeric_sql, numeric_value,
+                date_sql, date_value,
+                tables_priority
+            )
             if not df.empty:
                 total_df.append(df)
                 info_tables.append(f"{creator} ← {used_table}")
@@ -184,16 +199,12 @@ else:
         total_df = []
         info_tables = []
         for creator in selected_creators:
-            conditions, params = ["Creator = @creator"], [bigquery.ScalarQueryParameter("creator", "STRING", creator)]
-            if numeric_sql:
-                conditions.append(numeric_sql)
-                params += numeric_params
-            if date_sql:
-                conditions.append(date_sql)
-                params += date_params
-            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-            query_base = "SELECT * FROM {table_path} " + where_clause
-            df, used_table = find_creator_data(creator, query_base, params, tables_priority)
+            df, used_table = find_creator_data(
+                creator,
+                numeric_sql, numeric_value,
+                date_sql, date_value,
+                tables_priority
+            )
             if not df.empty:
                 total_df.append(df)
                 info_tables.append(f"{creator} ← {used_table}")
@@ -213,5 +224,3 @@ else:
             st.info("جدول هر Creator که دیتا داشت: <br>" + "<br>".join(info_tables), unsafe_allow_html=True)
         else:
             st.warning("نتیجه‌ای یافت نشد.")
-
-    # بخش پیوت را هم می‌خواهی همین منطق جداجدا باشد؟ اگر بله همینجا بنویسم!
