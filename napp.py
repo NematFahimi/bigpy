@@ -2,6 +2,7 @@ import streamlit as st
 from google.cloud import bigquery
 import pandas as pd
 from fpdf import FPDF
+import copy  # حتما اضافه کن
 
 def safe_text(text):
     try:
@@ -75,16 +76,16 @@ def export_df_to_pdf(df, filename):
     pdf.output(filename)
 
 def find_creator_data(creator, numeric_sql, numeric_value, date_sql, date_value, tables_priority):
-    # پارامترها برای هر Creator جدا ساخته می‌شوند
     for table_name in tables_priority:
         conditions = ["Creator = @creator"]
+        # همیشه پارامترها را کپی کن تا خراب نشوند!
         params = [bigquery.ScalarQueryParameter("creator", "STRING", creator)]
         if numeric_sql:
             conditions.append(numeric_sql)
-            params += numeric_value
+            params += copy.deepcopy(numeric_value)
         if date_sql:
             conditions.append(date_sql)
-            params += date_value
+            params += copy.deepcopy(date_value)
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         query_base = f"SELECT * FROM frsphotspots.HSP.{table_name} {where_clause}"
         try:
@@ -93,7 +94,6 @@ def find_creator_data(creator, numeric_sql, numeric_value, date_sql, date_value,
             if rows:
                 return pd.DataFrame(rows), table_name
         except Exception as e:
-            # اگر جدول وجود نداشت یا خطا داشت، جدول بعدی را امتحان کن
             continue
     return pd.DataFrame(), None
 
@@ -211,27 +211,3 @@ else:
             st.info("جدول هر Creator که دیتا داشت: <br>" + "<br>".join(info_tables), unsafe_allow_html=True)
         else:
             st.warning("نتیجه‌ای یافت نشد.")
-st.header("🧪 تست جدول دوم و سوم (مستقیم)")
-
-creator_test = st.text_input("یک Creator که مطمئنی در جدول دوم یا سوم هست:", "")
-if st.button("تست جدول hspdata_02"):
-    try:
-        query = "SELECT * FROM frsphotspots.HSP.hspdata_02 WHERE Creator = @creator LIMIT 5"
-        params = [bigquery.ScalarQueryParameter("creator", "STRING", creator_test)]
-        results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
-        rows = [dict(row) for row in results]
-        st.write(f"{len(rows)} رکورد در hspdata_02")
-        st.write(rows)
-    except Exception as e:
-        st.error(f"خطا: {e}")
-
-if st.button("تست جدول hspdata_ghor"):
-    try:
-        query = "SELECT * FROM frsphotspots.HSP.hspdata_ghor WHERE Creator = @creator LIMIT 5"
-        params = [bigquery.ScalarQueryParameter("creator", "STRING", creator_test)]
-        results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
-        rows = [dict(row) for row in results]
-        st.write(f"{len(rows)} رکورد در hspdata_ghor")
-        st.write(rows)
-    except Exception as e:
-        st.error(f"خطا: {e}")
