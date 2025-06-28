@@ -10,7 +10,7 @@ def safe_text(text):
 
 # ---- تنظیمات کلید سرویسی خود را اینجا بده ----
 import os
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"path_to_your_gcp_service_key.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"D:\bigquery\frsphotspots-260f77909682.json"
 
 client = bigquery.Client()
 tables_priority = ["hspdata", "hspdata_02", "hspdata_ghor"]
