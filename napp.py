@@ -57,10 +57,11 @@ def export_df_to_pdf(df, filename):
     pdf.set_draw_color(51, 51, 51)
     fill = False
     line_height = 6.35
+    col0 = df.columns[0]  # رفع اخطار آینده‌نگر
     for idx, row in df.iterrows():
         is_total_row = (
-            (str(row[0]).strip().endswith("Total")) or
-            (str(row[0]).strip().lower() == "grand total")
+            (str(row[col0]).strip().endswith("Total")) or
+            (str(row[col0]).strip().lower() == "grand total")
         )
         if is_total_row:
             pdf.set_fill_color(200, 210, 210)
@@ -75,7 +76,9 @@ def export_df_to_pdf(df, filename):
         fill = not fill
     pdf.output(filename)
 
-def find_creator_data(creator, numeric_sql, numeric_value, date_sql, date_value, tables_priority):
+def find_creator_data_collect_all(creator, numeric_sql, numeric_value, date_sql, date_value, tables_priority):
+    dfs = []
+    used_tables = []
     for table_name in tables_priority:
         conditions = ["Creator = @creator"]
         params = [bigquery.ScalarQueryParameter("creator", "STRING", creator)]
@@ -88,7 +91,7 @@ def find_creator_data(creator, numeric_sql, numeric_value, date_sql, date_value,
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         query_base = f"SELECT * FROM frsphotspots.HSP.{table_name} {where_clause}"
 
-        # نمایش اطلاعات تستی
+        # برای دیباگ، اطلاعات کوئری را نمایش بده
         st.info(
             f"🟢 <b>جدول:</b> {table_name} | <b>Creator:</b> <code>{creator}</code> | "
             f"<b>Query:</b> <code>{query_base}</code> | <b>Params:</b> {params}",
@@ -99,16 +102,17 @@ def find_creator_data(creator, numeric_sql, numeric_value, date_sql, date_value,
             rows = [dict(row) for row in res]
             st.write(f"⬅️ تعداد رکورد: {len(rows)} از جدول {table_name} برای Creator={creator}")
             if rows:
-                st.write(rows)
-                return pd.DataFrame(rows), table_name
+                dfs.append(pd.DataFrame(rows))
+                used_tables.append(table_name)
         except Exception as e:
             st.error(
                 f"❌ خطا در جدول <b>{table_name}</b> برای Creator=<b>{creator}</b>:<br><code>{str(e)}</code>",
                 unsafe_allow_html=True
             )
             continue
-    st.warning(f"Creator <b>{creator}</b> در هیچ جدول یافت نشد.", unsafe_allow_html=True)
-    return pd.DataFrame(), None
+    if dfs:
+        return pd.concat(dfs, ignore_index=True), used_tables
+    return pd.DataFrame(), []
 
 st.title("📊 پنل گزارشات فارس‌روت")
 
@@ -176,7 +180,7 @@ else:
         total_df = []
         info_tables = []
         for creator in selected_creators:
-            df, used_table = find_creator_data(
+            df, used_tables = find_creator_data_collect_all(
                 creator,
                 numeric_sql, numeric_value,
                 date_sql, date_value,
@@ -184,14 +188,14 @@ else:
             )
             if not df.empty:
                 total_df.append(df)
-                info_tables.append(f"{creator} ← {used_table}")
+                info_tables.append(f"{creator} ← {', '.join(used_tables)}")
         if total_df:
             final_df = pd.concat(total_df, ignore_index=True)
             total_package = final_df['Package'].astype(float).sum() if 'Package' in final_df.columns else 0
             count_usv = final_df['UserServiceId'].count() if 'UserServiceId' in final_df.columns else 0
             st.success(f"**مجموع فروش:** {total_package:,.2f}")
             st.success(f"**تعداد بسته‌ها:** {count_usv}")
-            st.info("جدول هر Creator که دیتا داشت: <br>" + "<br>".join(info_tables), unsafe_allow_html=True)
+            st.info("Creator و جدول‌ها: <br>" + "<br>".join(info_tables), unsafe_allow_html=True)
         else:
             st.warning("داده‌ای یافت نشد.")
 
@@ -199,7 +203,7 @@ else:
         total_df = []
         info_tables = []
         for creator in selected_creators:
-            df, used_table = find_creator_data(
+            df, used_tables = find_creator_data_collect_all(
                 creator,
                 numeric_sql, numeric_value,
                 date_sql, date_value,
@@ -207,7 +211,7 @@ else:
             )
             if not df.empty:
                 total_df.append(df)
-                info_tables.append(f"{creator} ← {used_table}")
+                info_tables.append(f"{creator} ← {', '.join(used_tables)}")
         if total_df:
             final_df = pd.concat(total_df, ignore_index=True)
             if 'UserServiceId' in final_df.columns:
@@ -221,6 +225,6 @@ else:
                     file_name="output.pdf",
                     mime="application/pdf"
                 )
-            st.info("جدول هر Creator که دیتا داشت: <br>" + "<br>".join(info_tables), unsafe_allow_html=True)
+            st.info("Creator و جدول‌ها: <br>" + "<br>".join(info_tables), unsafe_allow_html=True)
         else:
             st.warning("نتیجه‌ای یافت نشد.")
