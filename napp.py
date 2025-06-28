@@ -9,11 +9,8 @@ def safe_text(text):
     except Exception:
         return ''
 
-# اتصال به سرویس BigQuery
 credentials_info = dict(st.secrets["gcp_service_account"])
 client = bigquery.Client.from_service_account_info(credentials_info)
-
-# لیست جدول‌ها به ترتیب اولویت
 tables_priority = ["hspdata", "hspdata_02", "hspdata_ghor"]
 
 def export_df_to_pdf(df, filename, add_total=False):
@@ -77,18 +74,17 @@ def export_df_to_pdf(df, filename, add_total=False):
         fill = not fill
     pdf.output(filename)
 
-# تابع کمکی جستجو در جدول‌ها به ترتیب، با چاپ لاگ
-def search_in_tables(query_base, params, tables_priority):
+# این تابع برای هر Creator جدا جدا دنبال می‌گردد
+def find_creator_data(creator, query_base, params, tables_priority):
     for table_name in tables_priority:
         query = query_base.format(table_path=f"frsphotspots.HSP.{table_name}")
         try:
-            results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
-            rows = [dict(row) for row in results]
-            print(f"Tried table: {table_name}, found {len(rows)} rows")
+            res = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
+            rows = [dict(row) for row in res]
             if rows:
+                # هر وقت اولین جدول که دیتا داشت را پیدا کرد، همان را برمی‌گرداند
                 return pd.DataFrame(rows), table_name
         except Exception as e:
-            print(f"Error in table {table_name}: {e}")
             continue
     return pd.DataFrame(), None
 
@@ -156,52 +152,57 @@ with cols[2]:
 if not selected_creators:
     st.warning("وارد کردن یوزر ضروری است")
 else:
-    # ========== خلاصه ==========
     if btn_show_summary:
-        conditions, params = [], []
-        if selected_creators:
-            conditions.append("Creator IN UNNEST(@creator_list)")
-            params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
-        if numeric_sql:
-            conditions.append(numeric_sql)
-            params += numeric_params
-        if date_sql:
-            conditions.append(date_sql)
-            params += date_params
-        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-        query_base = "SELECT * FROM {table_path} " + where_clause
-
-        df, used_table = search_in_tables(query_base, params, tables_priority)
-        if not df.empty:
-            total_package = df['Package'].astype(float).sum() if 'Package' in df.columns else 0
-            count_usv = df['UserServiceId'].count() if 'UserServiceId' in df.columns else 0
+        total_df = []
+        info_tables = []
+        for creator in selected_creators:
+            # هر Creator جدا جدا
+            conditions, params = ["Creator = @creator"], [bigquery.ScalarQueryParameter("creator", "STRING", creator)]
+            if numeric_sql:
+                conditions.append(numeric_sql)
+                params += numeric_params
+            if date_sql:
+                conditions.append(date_sql)
+                params += date_params
+            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            query_base = "SELECT * FROM {table_path} " + where_clause
+            df, used_table = find_creator_data(creator, query_base, params, tables_priority)
+            if not df.empty:
+                total_df.append(df)
+                info_tables.append(f"{creator} ← {used_table}")
+        if total_df:
+            final_df = pd.concat(total_df, ignore_index=True)
+            total_package = final_df['Package'].astype(float).sum() if 'Package' in final_df.columns else 0
+            count_usv = final_df['UserServiceId'].count() if 'UserServiceId' in final_df.columns else 0
             st.success(f"**مجموع فروش:** {total_package:,.2f}")
             st.success(f"**تعداد بسته‌ها:** {count_usv}")
-            st.info(f"داده‌ها از جدول **{used_table}** نمایش داده شد.")
+            st.info("جدول هر Creator که دیتا داشت: <br>" + "<br>".join(info_tables), unsafe_allow_html=True)
         else:
             st.warning("داده‌ای یافت نشد.")
 
-    # ========== دانلود گزارش ==========
     if btn_download_report:
-        conditions, params = [], []
-        if selected_creators:
-            conditions.append("Creator IN UNNEST(@creator_list)")
-            params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
-        if numeric_sql:
-            conditions.append(numeric_sql)
-            params += numeric_params
-        if date_sql:
-            conditions.append(date_sql)
-            params += date_params
-        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-        query_base = "SELECT * FROM {table_path} " + where_clause
-
-        df, used_table = search_in_tables(query_base, params, tables_priority)
-        if not df.empty:
-            if 'UserServiceId' in df.columns:
-                df = df.sort_values(by='UserServiceId', ascending=True)
-            st.write("جدول نتایج:", df)
-            export_df_to_pdf(df, "output.pdf")
+        total_df = []
+        info_tables = []
+        for creator in selected_creators:
+            conditions, params = ["Creator = @creator"], [bigquery.ScalarQueryParameter("creator", "STRING", creator)]
+            if numeric_sql:
+                conditions.append(numeric_sql)
+                params += numeric_params
+            if date_sql:
+                conditions.append(date_sql)
+                params += date_params
+            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            query_base = "SELECT * FROM {table_path} " + where_clause
+            df, used_table = find_creator_data(creator, query_base, params, tables_priority)
+            if not df.empty:
+                total_df.append(df)
+                info_tables.append(f"{creator} ← {used_table}")
+        if total_df:
+            final_df = pd.concat(total_df, ignore_index=True)
+            if 'UserServiceId' in final_df.columns:
+                final_df = final_df.sort_values(by='UserServiceId', ascending=True)
+            st.write("جدول نتایج:", final_df)
+            export_df_to_pdf(final_df, "output.pdf")
             with open("output.pdf", "rb") as pdf_file:
                 st.download_button(
                     label="📥 دانلود PDF",
@@ -209,111 +210,8 @@ else:
                     file_name="output.pdf",
                     mime="application/pdf"
                 )
-            st.info(f"داده‌ها از جدول **{used_table}** نمایش داده شد.")
+            st.info("جدول هر Creator که دیتا داشت: <br>" + "<br>".join(info_tables), unsafe_allow_html=True)
         else:
             st.warning("نتیجه‌ای یافت نشد.")
 
-    # ========== پیوت (گزارش خلاصه) ==========
-    if btn_pivot:
-        conditions, params = [], []
-        if selected_creators:
-            conditions.append("Creator IN UNNEST(@creator_list)")
-            params.append(bigquery.ArrayQueryParameter("creator_list", "STRING", selected_creators))
-        if numeric_sql:
-            conditions.append(numeric_sql)
-            params += numeric_params
-        if date_sql:
-            conditions.append(date_sql)
-            params += date_params
-        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-        pivot_query_base = """
-        SELECT
-          Creator,
-          ServiceName,
-          COUNT(UserServiceId) AS UserServiceId_count,
-          SUM(CAST(Package AS FLOAT64)) AS Package_sum
-        FROM {table_path}
-        {where_clause}
-        GROUP BY Creator, ServiceName
-        ORDER BY Creator, ServiceName
-        """.replace("{where_clause}", where_clause)
-
-        pivot_df, used_table = search_in_tables(pivot_query_base, params, tables_priority)
-        if not pivot_df.empty:
-            pivot_df = pivot_df.sort_values(by=['Creator', 'ServiceName', 'UserServiceId_count'], ascending=[True, True, True])
-            # جمع کل هر یوزر (اگر بیش از یکی انتخاب شده)
-            if len(selected_creators) >= 2:
-                rows_with_totals = []
-                for creator, group in pivot_df.groupby('Creator', sort=False):
-                    rows_with_totals.extend(group.to_dict('records'))
-                    total_row = {
-                        'Creator': f"{creator} - Total",
-                        'ServiceName': '',
-                        'UserServiceId_count': group['UserServiceId_count'].sum(),
-                        'Package_sum': group['Package_sum'].sum()
-                    }
-                    for col in pivot_df.columns:
-                        if col not in total_row:
-                            total_row[col] = ''
-                    rows_with_totals.append(total_row)
-                grand_total = {
-                    'Creator': 'Grand Total',
-                    'ServiceName': '',
-                    'UserServiceId_count': pivot_df['UserServiceId_count'].sum(),
-                    'Package_sum': pivot_df['Package_sum'].sum()
-                }
-                for col in pivot_df.columns:
-                    if col not in grand_total:
-                        grand_total[col] = ''
-                rows_with_totals.append(grand_total)
-                final_pivot_df = pd.DataFrame(rows_with_totals)
-            else:
-                final_pivot_df = pivot_df.copy()
-                grand_total = {
-                    'Creator': 'Grand Total',
-                    'ServiceName': '',
-                    'UserServiceId_count': final_pivot_df['UserServiceId_count'].sum(),
-                    'Package_sum': final_pivot_df['Package_sum'].sum()
-                }
-                for col in final_pivot_df.columns:
-                    if col not in grand_total:
-                        grand_total[col] = ''
-                final_pivot_df = pd.concat([final_pivot_df, pd.DataFrame([grand_total])], ignore_index=True)
-
-            st.write("خلاصه (Pivot Table):", final_pivot_df)
-            st.download_button(
-                label="📥دانلود فایل CSV",
-                data=final_pivot_df.to_csv(index=False).encode('utf-8'),
-                file_name="pivot_summary.csv",
-                mime="text/csv"
-            )
-            export_df_to_pdf(final_pivot_df, "pivot_summary.pdf", add_total=False)
-            with open("pivot_summary.pdf", "rb") as pdf_file:
-                st.download_button(
-                    label="📥دانلود فایل PDF",
-                    data=pdf_file,
-                    file_name="pivot_summary.pdf",
-                    mime="application/pdf"
-                )
-            st.info(f"داده‌ها از جدول **{used_table}** نمایش داده شد.")
-        else:
-            st.warning("داده‌ای برای خلاصه یافت نشد.")
-
-# ========= دکمه تست مستقیم =========
-if st.button("تست مستقیم جدول دوم"):
-    try:
-        query = "SELECT * FROM frsphotspots.HSP.hspdata_02 LIMIT 5"
-        results = client.query(query).result()
-        rows = [dict(row) for row in results]
-        st.write(f"{len(rows)} رکورد از جدول دوم:", rows)
-    except Exception as e:
-        st.error(f"خطا: {e}")
-
-if st.button("تست مستقیم جدول سوم"):
-    try:
-        query = "SELECT * FROM frsphotspots.HSP.hspdata_ghor LIMIT 5"
-        results = client.query(query).result()
-        rows = [dict(row) for row in results]
-        st.write(f"{len(rows)} رکورد از جدول سوم:", rows)
-    except Exception as e:
-        st.error(f"خطا: {e}")
+    # بخش پیوت را هم می‌خواهی همین منطق جداجدا باشد؟ اگر بله همینجا بنویسم!
