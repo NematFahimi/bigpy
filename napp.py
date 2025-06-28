@@ -211,3 +211,27 @@ else:
             st.info("جدول هر Creator که دیتا داشت: <br>" + "<br>".join(info_tables), unsafe_allow_html=True)
         else:
             st.warning("نتیجه‌ای یافت نشد.")
+st.header("🧪 تست جدول دوم و سوم (مستقیم)")
+
+creator_test = st.text_input("یک Creator که مطمئنی در جدول دوم یا سوم هست:", "")
+if st.button("تست جدول hspdata_02"):
+    try:
+        query = "SELECT * FROM frsphotspots.HSP.hspdata_02 WHERE Creator = @creator LIMIT 5"
+        params = [bigquery.ScalarQueryParameter("creator", "STRING", creator_test)]
+        results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
+        rows = [dict(row) for row in results]
+        st.write(f"{len(rows)} رکورد در hspdata_02")
+        st.write(rows)
+    except Exception as e:
+        st.error(f"خطا: {e}")
+
+if st.button("تست جدول hspdata_ghor"):
+    try:
+        query = "SELECT * FROM frsphotspots.HSP.hspdata_ghor WHERE Creator = @creator LIMIT 5"
+        params = [bigquery.ScalarQueryParameter("creator", "STRING", creator_test)]
+        results = client.query(query, bigquery.QueryJobConfig(query_parameters=params)).result()
+        rows = [dict(row) for row in results]
+        st.write(f"{len(rows)} رکورد در hspdata_ghor")
+        st.write(rows)
+    except Exception as e:
+        st.error(f"خطا: {e}")
