@@ -139,6 +139,6 @@ if uploaded_file:
                 job.result()
                 st.success(f"✅ آپلود به BigQuery با موفقیت انجام شد. تعداد ردیف‌ها: {len(df_clean)}")
                 time.sleep(2)
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری:\n{e}")
