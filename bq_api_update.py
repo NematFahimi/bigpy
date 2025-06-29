@@ -3,6 +3,7 @@ import pandas as pd
 import jdatetime
 import datetime
 import numpy as np
+import time
 from google.cloud import bigquery
 
 st.set_page_config(page_title="BigQuery Uploader", layout="centered")
@@ -137,5 +138,7 @@ if uploaded_file:
                 job = client.load_table_from_dataframe(df_clean, table_path, job_config=job_config)
                 job.result()
                 st.success(f"✅ آپلود به BigQuery با موفقیت انجام شد. تعداد ردیف‌ها: {len(df_clean)}")
+                time.sleep(2)
+                st.experimental_rerun()
             except Exception as e:
                 st.error(f"❌ خطا در ارسال داده به بیگ‌کوئری:\n{e}")
